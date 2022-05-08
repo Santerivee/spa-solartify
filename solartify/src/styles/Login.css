@@ -1,0 +1,19 @@
+#login-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 35vh;
+}
+#login-link {
+    margin: 20px;
+}
+/* #login-btn {
+} */
+#allow-delete-label {
+    font-size: 24px;
+    margin: 10px auto;
+}
+#allow-delete {
+    width: 50px;
+    height: 50px;
+}
