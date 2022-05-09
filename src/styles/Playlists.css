@@ -1,0 +1,58 @@
+html {
+    overflow: visible;
+}
+
+#playlists-container {
+    display: flex;
+    flex-direction: column;
+    width: 100vw;
+    font-size: 12px;
+    flex-shrink: none;
+}
+.playlist-item {
+    cursor: pointer;
+    border-top: rgb(143, 78, 129) solid 2px;
+    display: flex;
+    flex-direction: row;
+    margin: 2px;
+    width: 100vw;
+}
+
+h5 {
+    margin: auto 5px;
+    align-self: center;
+    text-overflow: ellipsis;
+}
+
+img {
+    height: 100px;
+    aspect-ratio: 1/1;
+    object-fit: cover;
+}
+a {
+    margin: auto 10px auto auto;
+}
+svg {
+    fill: green;
+
+    width: 24px;
+    min-width: 24px;
+    max-width: 24px;
+
+    stroke-width: 0;
+}
+path {
+    stroke-width: 1;
+}
+#external-link-btn {
+    width: 24px;
+    min-width: 24px;
+    max-width: 24px;
+
+    height: 24px;
+    min-height: 24px;
+    max-height: 24px;
+
+    opacity: 0;
+    z-index: 2;
+}

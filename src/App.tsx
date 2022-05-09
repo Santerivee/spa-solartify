@@ -1,5 +1,6 @@
 import React, { createContext, useState } from "react";
 import Routing from "./Routing";
+
 export const AuthContext = createContext<any>("lol");
 
 function App() {

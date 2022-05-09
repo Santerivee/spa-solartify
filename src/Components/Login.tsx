@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { createContext, useState } from "react";
 import { Link } from "react-router-dom";
 import "../styles/Login.css";
 
@@ -6,11 +6,6 @@ const Login = () => {
     const [checked, setChecked] = useState(true);
     const login = function () {
         //send auth req to spotify
-
-        //if checked, deletion allowed. pretty obvious
-        const scope = checked
-            ? "streaming playlist-read-collaborative playlist-read-private user-read-private playlist-modify-public playlist-modify-private"
-            : "streaming playlist-read-collaborative playlist-read-private user-read-private";
 
         const client_id = "ae780b9e7bf4476285fcfc7475fc2664";
         const redirect_uri = "http://localhost:3000/main";
@@ -28,11 +23,18 @@ const Login = () => {
 
         //state to local storage if exists
         if (window.localStorage) {
+            console.log("localstorage state set");
             localStorage.setItem("state", state);
-            localStorage.setItem("scope", scope);
         } else {
             state = false;
         }
+
+        //if checked, deletion allowed. pretty obvious.
+        //dont allow deletion if state cant be validated, just in case
+        const scope =
+            checked && state
+                ? "streaming playlist-read-collaborative playlist-read-private user-read-private playlist-modify-public playlist-modify-private"
+                : "streaming playlist-read-collaborative playlist-read-private user-read-private";
 
         let url =
             "https://accounts.spotify.com/authorize" +
