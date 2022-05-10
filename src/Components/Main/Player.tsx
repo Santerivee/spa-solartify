@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import Spinner from "./Spinner";
-import "../../styles/Globals.css";
-import "../../styles/Player.css";
+import "../../styles/no_overflow.css";
+import { IWebPlaybackState, ICurrent, IPlaylistObj } from "../../types";
+import { ErrorModal } from "./ErrorModal";
+import { Link } from "react-router-dom";
 
 const Player = ({ playlistObj, authObj }: any) => {
     /* playlistObj: {
@@ -11,12 +13,17 @@ const Player = ({ playlistObj, authObj }: any) => {
         uri: playlist["uri"],
         img: image,
     }*/
-    const [thisPlaylist, setThisPlaylist] = useState<any>(null);
+    const [thisPlaylist, setThisPlaylist] = useState<IPlaylistObj | null>(null);
     const [thisQueue, setThisQueue] = useState<any>(null);
     const [player, setPlayer] = useState<any>(null);
     const [metaData, setMetaData] = useState<any>(null);
     const [spinnerPercentage, setSpinnerPercentage] = useState<number>(0);
-    const [current, setSurrent] = useState<any>(null);
+    const [current, setCurrent] = useState<ICurrent | null>(null);
+    const [volume, setVolume] = useState(0.01);
+    const [seek, setSeek] = useState(0);
+    const [playlist, setPlaylist] = playlistObj;
+
+    const [error, setError] = useState<Error | string | null>(null);
 
     const defaultHeaders = [
         ["Authorization", "Bearer " + authObj["access_token"]],
@@ -41,7 +48,7 @@ const Player = ({ playlistObj, authObj }: any) => {
                 getOAuthToken: (cb: any) => {
                     cb(authObj["access_token"]);
                 },
-                volume: 0.01,
+                volume: volume,
             });
 
             thisPlayer.addListener("ready", ({ device_id }: any) => {
@@ -52,66 +59,84 @@ const Player = ({ playlistObj, authObj }: any) => {
             thisPlayer.addListener("not_ready", ({ device_id }: any) => {
                 console.log("Device ID has gone offline", device_id);
             });
+            ["initialization_error", "authentication_error", "account_error", "playback_error"].forEach((name) => {
+                thisPlayer.addListener(name, () => {
+                    setError(name);
+                });
+            });
 
-            thisPlayer.connect().then((success: boolean) => (!success ? console.error("spotify sdk error") : null));
+            thisPlayer.connect().then((success: boolean) => (!success ? setError("spotify sdk error") : null));
 
-            thisPlayer.addListener("player_state_changed", ({ webPlaybackState }: any) => {
+            thisPlayer.addListener("player_state_changed", (webPlaybackState: IWebPlaybackState) => {
+                console.log("player state change");
+
                 if (!webPlaybackState) return;
-
-                if (webPlaybackState["duration"] !== current["duration"]) {
+                setSeek(webPlaybackState["position"]);
+                if (!current || webPlaybackState["duration"] !== current!["currentSong"]["duration_ms"]) {
                     //song has changed, update current
-                } else {
-                    //update seek bar
+                    const artists: string[] = [];
+                    for (let i = 0; i < webPlaybackState["track_window"]["current_track"]["artists"].length; i++) {
+                        artists.push(webPlaybackState["track_window"]["current_track"]["artists"][i]["name"]);
+                    }
+                    const nextArtists: string[] = [];
+                    for (let i = 0; i < webPlaybackState["track_window"]["next_tracks"][0]["artists"].length; i++) {
+                        nextArtists.push(webPlaybackState["track_window"]["next_tracks"][0]["artists"][i]["name"]);
+                    }
+                    setCurrent({
+                        currentSong: {
+                            name: webPlaybackState["track_window"]["current_track"]["name"],
+                            artist: artists.join(", "),
+                            uri: webPlaybackState["track_window"]["current_track"]["uri"],
+                            duration_ms: webPlaybackState["duration"],
+                            //@ts-ignore
+                            duration: new Date((webPlaybackState["duration"] / 1000) * 1000).toISOString().substring(14, 19),
+                        },
+                        currentAlbum: {
+                            name: webPlaybackState["track_window"]["current_track"]["album"]["name"],
+                            cover: webPlaybackState["track_window"]["current_track"]["album"]["images"][2]["url"], //change this to index 0 for higher quality
+                            uri: webPlaybackState["track_window"]["current_track"]["album"]["uri"],
+                        },
+                        currentPlaylist: {
+                            name: webPlaybackState["context"]["metadata"]["context_description"],
+                            uri: webPlaybackState["context"]["uri"],
+                        },
+                        nextSong: {
+                            name: webPlaybackState["track_window"]["next_tracks"][0]["name"],
+                            cover: webPlaybackState["track_window"]["next_tracks"][0]["album"]["images"][1]["url"],
+                            artist: nextArtists.join(", "),
+                        },
+                    });
                 }
             });
 
             setPlayer(thisPlayer);
         };
+        setThisPlaylist(playlist);
     }, []);
 
     useEffect(() => {
-        //get playlist stuff
-        (async () => {
-            await fetch(BASEURL + "playlists/" + playlistObj["id"], {
-                headers: defaultHeaders,
-            })
-                .then((response) => response.json())
-                .then((data) => {
-                    let cover;
-                    try {
-                        cover = data["imagees"][2];
-                    } catch (e) {
-                        console.error(e);
-                        cover = null;
-                    }
-                    setThisPlaylist({
-                        name: data["name"],
-                        cover: cover,
-                        href: data["href"],
-                    });
-                });
-        })();
-
         //get songs w/ recursive func because spotify only returns 50 at a time
+        if (!thisPlaylist) {
+            return;
+        }
         (() => {
             async function getPlaylists(lastTotal = 0, lastArray: any[] = []) {
-                //@ts-ignore
-                const data = await fetch(BASEURL + "playlists/" + data["id"] + "/tracks?limit=50&offset=" + lastTotal, {
+                const data = await fetch(BASEURL + "playlists/" + thisPlaylist["id"] + "/tracks?limit=50&offset=" + lastTotal, {
                     headers: defaultHeaders,
                 })
                     .then((response) => response.json())
                     .then((data) => data)
-                    .catch((error) => console.error(error));
+                    .catch((e: Error) => setError(e));
 
                 data["items"].forEach((item: any) => {
                     lastArray.push(item["track"]["uri"]);
                 });
 
                 //@ts-ignore
-                setSpinnerPercentage(parseInt((lastTotal / parseInt(data["total"])) * 100) + "%");
+                setSpinnerPercentage(parseInt((lastTotal / parseInt(data["total"])) * 100));
 
                 //if total is not maxed out, it means there are no more playlists left
-                if (data["items"].length !== 50 || lastTotal > 1000) {
+                if (data["items"].length !== 50 || lastTotal > 5000) {
                     shufflePlaylist(lastArray);
                 }
                 //if total is maxed out, we need to get the next 50 playlists
@@ -121,60 +146,115 @@ const Player = ({ playlistObj, authObj }: any) => {
 
                 function shufflePlaylist(array: string[]) {
                     const len = array.length - 1;
-                    //this could probably be optimized to actually stop after 100 have been shuffled
-                    //len-100 is an attempted optimization and i dont know if it actually works
-                    for (let i = len; i > len - 100 /* 0 */; i--) {
+                    for (let i = len; i > 0; i--) {
                         const j = Math.floor(Math.random() * (i + 1));
-                        //@ts-ignore
+
                         [array[i], array[j]] = [array[j], array[i]];
                     }
                     if (len > 100) array.length = 100;
                     setThisQueue(array);
                 }
             }
+            getPlaylists();
         })();
         return () => {};
-    }, [playlistObj]);
+    }, [thisPlaylist]);
 
     useEffect(() => {
+        //start playing custom queue
+        if (!metaData) {
+            return;
+        }
         fetch(BASEURL + "me/player/play?device_id=" + metaData["device_id"], {
             method: "PUT",
             headers: defaultHeaders,
             body: JSON.stringify({
                 uris: thisQueue,
             }),
-        });
+        }).catch((e: Error) => setError(e));
 
         return () => {};
-    }, [thisQueue]);
+    }, [thisQueue, metaData]);
 
-    const deleteSong = function () {};
-    if (!metaData["device_id"]) return <Spinner text={"Waiting for spotify api"} />;
+    useEffect(() => {
+        setInterval(() => {
+            setSeek((prev) => prev + 1000);
+        }, 1000);
+    }, []);
+
+    const deleteSong = function () {
+        fetch(BASEURL + "playlists/" + thisPlaylist["id"] + "/tracks", {
+            method: "DELETE",
+            headers: defaultHeaders,
+            body: JSON.stringify({ tracks: [{ uri: current["currentSong"]["uri"] }] }),
+        })
+            .then(() => skip("next"))
+            .catch((e: Error) => setError(e));
+    };
+    const skip = function (direction: "next" | "prev" | "pause-play") {
+        switch (direction) {
+            case "next":
+                player.nextTrack();
+                return;
+            case "prev":
+                player.previousTrack();
+                return;
+            case "pause-play":
+                player.togglePlay();
+                return;
+            default:
+                console.log("lol");
+                return;
+        }
+    };
+    if (!current) return <Spinner percentage={spinnerPercentage} text={"Waiting for spotify api"} />;
     return (
         <main id="player">
-            <div id="current-playlist-container">
-                <img
-                    src={
-                        thisPlaylist["cover"] || "playlistObj:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="
-                    }
-                    alt=""
-                    id="current-playlist-image"
-                />
-                <p id="current-playlist-name" style={{ color: "rgb(198, 198, 255)", textDecoration: "underline" }}>
-                    {thisPlaylist["name"]}
-                </p>
-            </div>
+            {error ? <ErrorModal error={error} /> : null}
+            <header id="header">
+                <Link id="logout-container" to="/">
+                    <button
+                        onClick={() => {
+                            player.disconnect();
+                            window.localStorage.removeItem("state");
+                        }}
+                        id="logout-btn"
+                    >
+                        Log out
+                    </button>
+                </Link>
+                <div onClick={() => setPlaylist(null)} id="current-playlist-container">
+                    <img
+                        src={
+                            thisPlaylist["img"] ||
+                            "playlistObj:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="
+                        }
+                        alt=""
+                        id="current-playlist-image"
+                    />
 
+                    <p id="current-playlist-name" style={{ color: "rgb(198, 198, 255)", textDecoration: "underline" }}>
+                        {thisPlaylist["name"]}
+                    </p>
+                </div>
+            </header>
             {/* <!-- https://stackoverflow.com/questions/5775469/whats-the-valid-way-to-include-an-image-with-no-src --> */}
-            <img id="album-art" src=" " alt="album art" />
+            <img
+                id="album-art"
+                src={
+                    current["currentAlbum"]["cover"] ||
+                    "playlistObj:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="
+                }
+                alt="album art"
+            />
             <div id="song-info">
-                <p id="song-name">song name</p>
-                <p id="artist-name">artist name</p>
+                <p id="song-name">{current["currentSong"]["name"]} </p>
+                <p id="artist-name">{current["currentSong"]["artist"]}</p>
             </div>
 
             <div id="skip-container">
                 <div id="skip-button-container">
-                    <button className="btn skip-btn" id="prev-btn">
+                    <button onClick={() => skip("prev")} className="btn skip-btn" id="prev-btn">
                         {/* <!-- https://www.svgrepo.com/svg/42622/back --> */}
                         <svg
                             version="1.1"
@@ -195,7 +275,7 @@ const Player = ({ playlistObj, authObj }: any) => {
                             />
                         </svg>
                     </button>
-                    <button className="btn" id="play-btn">
+                    <button onClick={() => skip("pause-play")} className="btn" id="play-btn">
                         {/*  <!-- https://www.svgrepo.com/svg/100677/pause-button --> */}
                         <svg
                             id="play-svg"
@@ -217,7 +297,7 @@ const Player = ({ playlistObj, authObj }: any) => {
                             />
                         </svg>
                     </button>
-                    <button className="btn skip-btn" id="skip-btn">
+                    <button onClick={() => skip("next")} className="btn skip-btn" id="skip-btn">
                         <svg
                             version="1.1"
                             id="skip-svg"
@@ -239,31 +319,64 @@ const Player = ({ playlistObj, authObj }: any) => {
                         </svg>
                     </button>
                 </div>
-                <div id="skip-info">
+                {/* <div id="skip-info">
                     <div id="next-info">
-                        <p id="next-song-name">song name</p>
-                        <p id="next-song-artist">artist name</p>
+                        <p id="next-song-name">{current["nextSong"]["name"]}</p>
+                        <p id="next-song-artist">{current["nextSong"]["artist"]} </p>
                     </div>
-                    <img id="next-song-cover" src="" alt="cover art of next song" />
-                </div>
+                    <img
+                        id="next-song-cover"
+                        src={
+                            current["nextSong"]["cover"] ||
+                            "playlistObj:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="
+                        }
+                        alt="cover art of next song"
+                    />
+                </div> */}
             </div>
 
             <div className="range-container" id="seek-container">
-                <input className="range" type="range" id="seek" name="seek" min="0" max="100" step="any" />
+                <input
+                    onInput={(e) => {
+                        //@ts-ignore
+                        const thing = (parseInt(e.target.value) * current["currentSong"]["duration_ms"]) / 100;
+                        player.seek(thing);
+                        setSeek(thing);
+                    }}
+                    value={(seek / current["currentSong"]["duration_ms"]) * 100}
+                    className="range"
+                    type="range"
+                    id="seek"
+                    name="seek"
+                    min="0"
+                    max="100"
+                    step="any"
+                />
                 <div id="seek-number-container">
                     <p className="seek-number" id="seek-number-current">
-                        0:00
+                        {/*skull emoji formatting*/ new Date((seek / 1000) * 1000).toISOString().substring(14, 19)}
                     </p>
                     <p className="seek-number" id="seek-number-total">
-                        0:00
+                        {current["currentSong"]["duration"].toString()}
                     </p>
                 </div>
             </div>
             <div className="range-container" id="volume-container">
                 <label id="volume-display" htmlFor="volume">
-                    2%
+                    {volume}
                 </label>
-                <input className="range" type="range" id="volume" value="2" name="volume" min="0" max="100" />
+                <input
+                    onChange={(e) => {
+                        player.setVolume(parseInt(e.target.value) / 100).then(() => setVolume(parseInt(e.target.value)));
+                    }}
+                    className="range"
+                    type="range"
+                    id="volume"
+                    value={volume}
+                    name="volume"
+                    min="0"
+                    max="100"
+                />
             </div>
 
             <div id="remove-container">
