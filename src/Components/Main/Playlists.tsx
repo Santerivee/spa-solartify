@@ -1,7 +1,5 @@
 import React, { useEffect, useContext, useState } from "react";
 import Spinner from "./Spinner";
-import { AuthContext } from "../../App";
-import { Link, NavLink } from "react-router-dom";
 
 const Playlists = ({ playlistObj, authObj }: { playlistObj: [any, React.Dispatch<any>]; authObj: any }) => {
     // const user = ["saodfjsadf", () => { console.log("lolxd"); }];

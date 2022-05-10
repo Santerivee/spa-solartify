@@ -1,12 +1,10 @@
-import React, { createContext, useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState } from "react";
 import "../styles/Login.css";
 
 const Login = () => {
     const [checked, setChecked] = useState(true);
     const login = function () {
         //send auth req to spotify
-
         const client_id = "ae780b9e7bf4476285fcfc7475fc2664";
         const redirect_uri = "http://localhost:3000/main";
 
