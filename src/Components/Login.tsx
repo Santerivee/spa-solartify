@@ -6,7 +6,7 @@ const Login = () => {
     const login = function () {
         //send auth req to spotify
         const client_id = "ae780b9e7bf4476285fcfc7475fc2664";
-        const redirect_uri = "http://localhost:3000/main";
+        const redirect_uri = "https://solartify.web.app/main";
 
         let state: string | boolean = (() => {
             const length = 36;
@@ -52,7 +52,6 @@ const Login = () => {
 
     return (
         <div id="login-container">
-            <a href="https://github.com/santerivee/spa-solartify">Github</a>
             <button onClick={() => login()} id="login-btn">
                 Login
             </button>
@@ -67,6 +66,7 @@ const Login = () => {
                 type="checkbox"
                 id="allow-delete"
             ></input>
+            <a href="https://github.com/santerivee/spa-solartify">Github</a>
         </div>
     );
 };
