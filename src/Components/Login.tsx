@@ -54,6 +54,7 @@ const Login = () => {
 
     return (
         <div id="login-container">
+            <a href="https://github.com/santerivee/spa-solartify">Github</a>
             <button onClick={() => login()} id="login-btn">
                 Login
             </button>

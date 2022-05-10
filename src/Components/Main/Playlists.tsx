@@ -1,10 +1,9 @@
 import React, { useEffect, useContext, useState } from "react";
 import Spinner from "./Spinner";
 import { AuthContext } from "../../App";
-import "../../styles/Playlists.css";
 import { Link, NavLink } from "react-router-dom";
 
-const Playlists = ({ playlistObj, authObj }: any) => {
+const Playlists = ({ playlistObj, authObj }: { playlistObj: [any, React.Dispatch<any>]; authObj: any }) => {
     // const user = ["saodfjsadf", () => { console.log("lolxd"); }];
     const [playlist, setPlaylist] = playlistObj;
     const [PlaylistList, setPlaylistList] = useState<any>(null);
@@ -59,6 +58,7 @@ const Playlists = ({ playlistObj, authObj }: any) => {
                     //if total is not maxed out, it means we have all the playlists
                     if (data["items"].length !== 50) {
                         setPlaylistList(lastArray);
+                        console.log({ playlistList: PlaylistList });
                         resolve();
                     }
                     //if total is maxed out, we need to get the next 50 playlists
@@ -84,7 +84,14 @@ const Playlists = ({ playlistObj, authObj }: any) => {
                     return (
                         <div title={"Choose playlist " + playlist["name"]} className="playlist-item" key={playlist["id"]}>
                             <img onClick={() => setPlaylist(playlist)} src={playlist["img"]} alt={playlist["name"]} />
-                            <h5 onClick={() => setPlaylist(playlist)}>{playlist["name"]} </h5>
+                            <h5
+                                onClick={() => {
+                                    console.log(playlist);
+                                    setPlaylist(playlist);
+                                }}
+                            >
+                                {playlist["name"]}{" "}
+                            </h5>
 
                             <a href={"https://open.spotify.com/playlist/" + playlist["id"]} target="_blank">
                                 <svg id="external-link-svg" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">

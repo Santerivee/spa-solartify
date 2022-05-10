@@ -15,8 +15,4 @@ const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement)
 
 const AuthContext = createContext<any>(null);
 
-root.render(
-    <React.StrictMode>
-        <App />
-    </React.StrictMode>
-);
+root.render(<App />);

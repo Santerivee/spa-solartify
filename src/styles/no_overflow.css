@@ -1,0 +1,8 @@
+/* i cant take it anymore */
+html {
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden !important;
+    background: rgb(100, 61, 140);
+    background: radial-gradient(circle closest-corner at 50% 25%, rgba(100, 61, 140, 1) 0%, rgba(115, 38, 88, 1) 100%) !important;
+}

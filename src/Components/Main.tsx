@@ -30,7 +30,7 @@ const Main = () => {
     // return true ? <Player data={["1"]} /> : <Spinner text={"getting something"} />;
 
     if (playlist) {
-        return <Player playlistObj={playlist} authObj={authObj} />;
+        return <Player playlistObj={[playlist, setPlaylist]} authObj={authObj} />;
     } else if (authObj) {
         return <Playlists playlistObj={[playlist, setPlaylist]} /* playlist={playlist} setPlaylist={setPlaylist} */ authObj={authObj} />;
     } else {
