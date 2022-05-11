@@ -1,10 +1,15 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import Spinner from "./Spinner";
 
 const Playlists = ({ playlistObj, authObj }: { playlistObj: [any, React.Dispatch<any>]; authObj: any }) => {
-    // const user = ["saodfjsadf", () => { console.log("lolxd"); }];
     const [playlist, setPlaylist] = playlistObj;
-    const [PlaylistList, setPlaylistList] = useState<any>(null);
+    const [PlaylistList, setPlaylistList] =
+        useState<Array<{ name: string; external_url: string; id: string; uri: string; img: string; total: number }>>(null);
+    const [searchState, setSearchState] = useState("");
+
+    //surely i will not resort to this in a react app?
+    (async () => (document.querySelector("html").style.overflow = "visible"))();
 
     useEffect(() => {
         const BASEURL = "https://api.spotify.com/v1/";
@@ -50,13 +55,13 @@ const Playlists = ({ playlistObj, authObj }: { playlistObj: [any, React.Dispatch
                             id: playlist["id"],
                             uri: playlist["uri"],
                             img: image,
+                            total: playlist["tracks"]["total"],
                         });
                     });
 
                     //if total is not maxed out, it means we have all the playlists
                     if (data["items"].length !== 50) {
                         setPlaylistList(lastArray);
-                        console.log({ playlistList: PlaylistList });
                         resolve();
                     }
                     //if total is maxed out, we need to get the next 50 playlists
@@ -75,16 +80,35 @@ const Playlists = ({ playlistObj, authObj }: { playlistObj: [any, React.Dispatch
         return <Spinner text={"Getting your playlists"} />;
     }
     return (
-        <>
-            <h3>Your playlists</h3>
+        <div id="playlists-container">
+            <Link id="playlists-logout-container" to="/">
+                <button
+                    onClick={() => {
+                        window.localStorage.removeItem("state");
+                    }}
+                    id="playlists-logout-btn"
+                >
+                    Log out
+                </button>
+            </Link>
+            <input
+                onInput={(e) => {
+                    //@ts-ignore
+                    setSearchState(e.target.value);
+                }}
+                value={searchState}
+                placeholder="Search by name"
+                type="search"
+                id="playlist-search"
+            ></input>
+
             <div id="playlists-container">
-                {PlaylistList.map((playlist: any) => {
+                {PlaylistList.filter((val) => val["name"].toUpperCase().includes(searchState.toUpperCase())).map((playlist: any) => {
                     return (
                         <div title={"Choose playlist " + playlist["name"]} className="playlist-item" key={playlist["id"]}>
                             <img onClick={() => setPlaylist(playlist)} src={playlist["img"]} alt={playlist["name"]} />
                             <h5
                                 onClick={() => {
-                                    console.log(playlist);
                                     setPlaylist(playlist);
                                 }}
                             >
@@ -135,7 +159,7 @@ const Playlists = ({ playlistObj, authObj }: { playlistObj: [any, React.Dispatch
                     );
                 })}
             </div>
-        </>
+        </div>
     );
 };
 export default Playlists;

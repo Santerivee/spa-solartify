@@ -5,16 +5,16 @@
     font-family: Arial;
     color: rgb(221, 221, 221);
     background: none;
-
     /* background: rgb(100, 61, 140);
 background: radial-gradient(circle closest-corner at 50% 25%, rgba(100, 61, 140, 1) 0%, rgba(115, 38, 88, 1) 100%); */
 }
 html {
     height: 100vh;
     width: 100vw;
-
+    overflow: hidden;
     background: rgb(100, 61, 140);
-    background: radial-gradient(circle closest-corner at 50% 25%, rgba(100, 61, 140, 1) 0%, rgba(115, 38, 88, 1) 100%) !important;
+    background: radial-gradient(circle closest-corner at 50% 25%, rgba(100, 61, 140, 1) 0%, rgba(115, 38, 88, 1) 100%);
+    background-attachment: fixed;
 }
 
 /* player.tsx */
@@ -202,6 +202,9 @@ html {
     #volume-container {
         display: none;
     }
+    #playlists-container {
+        overflow-x: hidden !important;
+    }
     #player {
         height: 100vh;
         width: 100vw;
@@ -212,6 +215,33 @@ html {
     }
 }
 /* playlists.tsx */
+#playlists-container {
+    /* background: linear-gradient( rgba(100, 61, 140, 1) 0%, rgba(115, 38, 88, 1) 50%, rgba(100, 61, 140, 1) 100%); */
+    background: repeating-linear-gradient(0deg, #573777, #732658, #573777 50%);
+    overflow: visible;
+}
+
+#playlists-logout-container {
+    z-index: 2;
+    cursor: pointer;
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    padding: 2px;
+}
+#playlists-logout-btn {
+    cursor: inherit;
+    padding: 3px;
+}
+
+#playlist-search {
+    font-size: 24px;
+    text-overflow: ellipsis;
+    width: calc(100vw - 2 * 5px);
+    margin: 5px;
+    padding: 5px;
+}
+
 #playlists-container {
     display: flex;
     flex-direction: column;

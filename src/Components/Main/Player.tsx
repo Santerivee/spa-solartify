@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import Spinner from "./Spinner";
-import "../../styles/no_overflow.css";
 import { IWebPlaybackState, ICurrent, IPlaylistObj } from "../../types";
 import { ErrorModal } from "./ErrorModal";
 import { Link } from "react-router-dom";
+import { parse } from "path";
+import { threadId } from "worker_threads";
 
 const Player = ({ playlistObj, authObj }: any) => {
     /* playlistObj: {
@@ -12,6 +13,7 @@ const Player = ({ playlistObj, authObj }: any) => {
         id: playlist["id"],
         uri: playlist["uri"],
         img: image,
+        length: playlist["tracks"]["total"],
     }*/
     const [thisPlaylist, setThisPlaylist] = useState<IPlaylistObj | null>(null);
     const [thisQueue, setThisQueue] = useState<any>(null);
@@ -24,6 +26,9 @@ const Player = ({ playlistObj, authObj }: any) => {
     const [playlist, setPlaylist] = playlistObj;
 
     const [error, setError] = useState<Error | string | null>(null);
+
+    //look away
+    (async () => (document.querySelector("html").style.overflow = "visible"))();
 
     const defaultHeaders = [
         ["Authorization", "Bearer " + authObj["access_token"]],
@@ -53,7 +58,6 @@ const Player = ({ playlistObj, authObj }: any) => {
 
             thisPlayer.addListener("ready", ({ device_id }: any) => {
                 setMetaData({ device_id });
-                console.log("Ready with Device ID", device_id);
             });
 
             thisPlayer.addListener("not_ready", ({ device_id }: any) => {
@@ -72,16 +76,21 @@ const Player = ({ playlistObj, authObj }: any) => {
 
                 if (!webPlaybackState) return;
                 setSeek(webPlaybackState["position"]);
-                if (!current || webPlaybackState["duration"] !== current!["currentSong"]["duration_ms"]) {
+                if (
+                    (!current || webPlaybackState["duration"] !== current!["currentSong"]["duration_ms"]) &&
+                    webPlaybackState["track_window"]["current_track"] !== null
+                ) {
                     //song has changed, update current
                     const artists: string[] = [];
+                    const nextArtists: string[] = [];
+
                     for (let i = 0; i < webPlaybackState["track_window"]["current_track"]["artists"].length; i++) {
                         artists.push(webPlaybackState["track_window"]["current_track"]["artists"][i]["name"]);
                     }
-                    const nextArtists: string[] = [];
                     for (let i = 0; i < webPlaybackState["track_window"]["next_tracks"][0]["artists"].length; i++) {
                         nextArtists.push(webPlaybackState["track_window"]["next_tracks"][0]["artists"][i]["name"]);
                     }
+
                     setCurrent({
                         currentSong: {
                             name: webPlaybackState["track_window"]["current_track"]["name"],
@@ -115,68 +124,119 @@ const Player = ({ playlistObj, authObj }: any) => {
     }, []);
 
     useEffect(() => {
-        //get songs w/ recursive func because spotify only returns 50 at a time
-        if (!thisPlaylist) {
-            return;
-        }
-        (() => {
-            async function getPlaylists(lastTotal = 0, lastArray: any[] = []) {
-                const data = await fetch(BASEURL + "playlists/" + thisPlaylist["id"] + "/tracks?limit=50&offset=" + lastTotal, {
-                    headers: defaultHeaders,
-                })
-                    .then((response) => response.json())
-                    .then((data) => data)
-                    .catch((e: Error) => setError(e));
+        if (!thisPlaylist) return;
+        try {
+            const raw = window.localStorage.getItem("tracks");
+            const obj: { playlist_info: IPlaylistObj; tracks: string[] } = JSON.parse(raw);
+            const info: IPlaylistObj = obj["playlist_info"];
 
-                data["items"].forEach((item: any) => {
-                    lastArray.push(item["track"]["uri"]);
-                });
+            if (info["id"] === thisPlaylist["id"] && info["total"] === thisPlaylist["total"]) {
+                console.log("cache used, skipping fetch to shuffle");
 
-                //@ts-ignore
-                setSpinnerPercentage(parseInt((lastTotal / parseInt(data["total"])) * 100));
-
-                //if total is not maxed out, it means there are no more playlists left
-                if (data["items"].length !== 50 || lastTotal > 5000) {
-                    shufflePlaylist(lastArray);
-                }
-                //if total is maxed out, we need to get the next 50 playlists
-                else {
-                    getPlaylists(lastTotal + 50, lastArray);
-                }
-
-                function shufflePlaylist(array: string[]) {
-                    const len = array.length - 1;
-                    for (let i = len; i > 0; i--) {
-                        const j = Math.floor(Math.random() * (i + 1));
-
-                        [array[i], array[j]] = [array[j], array[i]];
-                    }
-                    if (len > 100) array.length = 100;
-                    setThisQueue(array);
-                }
+                shufflePlaylist(obj["tracks"]);
+                return;
             }
-            getPlaylists();
+        } catch (e) {
+            console.log("no playlist in localstorage");
+            console.log(e);
+        }
+
+        (() => {
+            // fetch songs and shuffle them and set queue
+            const tracks: string[] = [];
+            get50Tracks();
+            // spotify only allows you to fetch 50 tracks in one request
+            // this used to be concurrent but managing the rate limiting is not fun
+            async function get50Tracks(offset: number = 0): Promise<string[]> {
+                return new Promise((resolve, reject) => {
+                    fetch(BASEURL + "playlists/" + thisPlaylist["id"] + "/tracks?limit=50&offset=" + offset, {
+                        headers: defaultHeaders,
+                    })
+                        .then((response) => {
+                            if (response.status === 429) {
+                                const wait = parseInt(response.headers.get("retry-after"));
+                                console.log({ wait });
+                                setTimeout(() => {
+                                    //idk if this actually works
+                                    return get50Tracks(offset);
+                                }, wait);
+                            } else if (!(response.status > 199 && response.status < 300)) {
+                                console.log(response);
+                            } else {
+                                return response.json();
+                            }
+                        })
+                        .then((data: SpotifyApi.PlaylistTrackResponse) => {
+                            data["items"].forEach((item) => {
+                                tracks.push(item["track"]["uri"]);
+                            });
+                            if (offset >= thisPlaylist["total"]) {
+                                shufflePlaylist(tracks);
+                            } else {
+                                get50Tracks(offset + 50);
+                            }
+                        })
+                        .catch((e) => console.log(e));
+                    // .catch((e: Error) => {
+                    //     reject(e);
+                    //     console.log(e);
+                    // });
+                });
+            }
         })();
+        // shuffle tracks and set queue
+        function shufflePlaylist(tracks: string[]) {
+            const len = tracks.length - 1;
+            for (let i = len; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+
+                [tracks[i], tracks[j]] = [tracks[j], tracks[i]];
+            }
+            if (len > 100) tracks.length = 100;
+
+            setThisQueue(tracks);
+            window.localStorage.setItem(
+                "tracks",
+                JSON.stringify({
+                    playlist_info: thisPlaylist,
+                    tracks: tracks,
+                })
+            );
+        }
+
         return () => {};
     }, [thisPlaylist]);
 
     useEffect(() => {
-        //start playing custom queue
         if (!metaData) {
             return;
         }
-        fetch(BASEURL + "me/player/play?device_id=" + metaData["device_id"], {
-            method: "PUT",
-            headers: defaultHeaders,
-            body: JSON.stringify({
-                uris: thisQueue,
-            }),
-        }).catch((e: Error) => setError(e));
+        function handleSetQueueError(res: any) {
+            console.log(res);
+            if (res.status === 502) {
+                //bad gateway
+                setTimeout(() => setQueue(), 1000);
+            }
+        }
+        //start playing custom queue
+        function setQueue() {
+            fetch(BASEURL + "me/player/play?device_id=" + metaData["device_id"], {
+                method: "PUT",
+                headers: defaultHeaders,
+                body: JSON.stringify({
+                    uris: thisQueue,
+                }),
+            })
+                .then((res) => (/* res.status.startsWith("2") */ res.ok ? null : handleSetQueueError(res)))
+                .catch((e: Error) => console.log(e));
+        }
+        setQueue();
 
         return () => {};
     }, [thisQueue, metaData]);
 
     useEffect(() => {
+        //automatically increment seek
         setInterval(() => {
             setSeek((prev) => prev + 1000);
         }, 1000);
@@ -351,7 +411,13 @@ const Player = ({ playlistObj, authObj }: any) => {
                 </label>
                 <input
                     onChange={(e) => {
-                        player.setVolume(parseInt(e.target.value) / 100).then(() => setVolume(parseInt(e.target.value)));
+                        //@ts-ignore
+                        const settable = e.target.value / 100;
+
+                        player.setVolume(settable).then(() => {
+                            //@ts-ignore
+                            setVolume(parseInt(settable * 100));
+                        });
                     }}
                     className="range"
                     type="range"
