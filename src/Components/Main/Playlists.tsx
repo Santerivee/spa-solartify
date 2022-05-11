@@ -1,4 +1,4 @@
-import React, { useEffect, useContext, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Spinner from "./Spinner";
 
 const Playlists = ({ playlistObj, authObj }: { playlistObj: [any, React.Dispatch<any>]; authObj: any }) => {
@@ -91,7 +91,7 @@ const Playlists = ({ playlistObj, authObj }: { playlistObj: [any, React.Dispatch
                                 {playlist["name"]}{" "}
                             </h5>
 
-                            <a href={"https://open.spotify.com/playlist/" + playlist["id"]} target="_blank">
+                            <a href={"https://open.spotify.com/playlist/" + playlist["id"]} rel="noreferrer" target="_blank">
                                 <svg id="external-link-svg" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
                                     <rect id="external-link-btn" x="0" y="0" width="50" height="50" onClick={() => alert("click!")} />
                                     <path

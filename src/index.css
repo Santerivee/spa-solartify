@@ -19,14 +19,16 @@ html {
 
 /* player.tsx */
 #player {
+    height: 100vh;
+    width: 100vw;
     display: flex;
     flex-direction: column;
     align-items: center;
 }
 
-#player * {
+/* #player * {
     overflow: hidden;
-}
+} */
 #error-modal {
     position: absolute;
     top: 80px;
@@ -38,7 +40,7 @@ html {
 #header {
     display: flex;
     flex-direction: row;
-    height: 28px;
+    height: 34px;
     overflow: visible;
     margin-bottom: 2px;
     width: 100vw;
@@ -47,9 +49,8 @@ html {
     justify-self: start;
     overflow: visible;
     text-decoration: none;
-    background: rgb(48, 74, 70);
-    background: linear-gradient(0deg, rgba(48, 74, 70, 1) 0%, rgba(38, 94, 115, 1) 100%);
     font-size: 14px;
+    min-width: 75px;
 }
 #logout-container > button {
     overflow: visible;
@@ -57,11 +58,14 @@ html {
 }
 
 #current-playlist-container {
+    width: 100%;
+    align-self: center;
     overflow: visible;
     cursor: pointer;
     display: flex;
     height: 28px;
-    margin-left: auto;
+    margin-right: auto;
+    margin-left: 5px;
 }
 
 #current-playlist-container > p {
@@ -75,9 +79,10 @@ html {
     margin-right: 5px;
 }
 #album-art {
+    box-shadow: 0 0 4px 2px rgb(21, 0, 21);
     aspect-ratio: 1/1;
     text-align: center;
-    max-width: 85vw;
+    max-width: 70vw;
 }
 #song-info {
     width: 85vw;
@@ -99,14 +104,18 @@ html {
     color: black;
 }
 #skip-container {
+    width: 95vw;
     display: flex;
-    flex-direction: column;
-    margin: auto 0.1em;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    margin: 5px;
 }
-#skip-button-container {
-    display: flex;
-}
-#skip-button-container > button {
+#skip-container > button {
+    /*when resizing to very small and then resizing to normal, 
+    the buttons would not resize up, rather they stayed small.
+    this fixes it because im lazy. */
+    min-width: 30%;
     margin: 5px;
     display: flex;
     justify-content: center;
@@ -155,14 +164,14 @@ html {
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: 90vw;
+    width: 95vw;
 }
 .range {
     max-width: 100vw;
 }
 #seek {
     margin: -15px 0;
-    width: 90vw;
+    width: 95vw;
 }
 
 #seek-number-container {
@@ -178,10 +187,10 @@ html {
 
 #remove-container {
     margin: 15px;
+    margin-top: auto;
     background: rgb(48, 74, 70);
     background: linear-gradient(0deg, rgba(48, 74, 70, 1) 0%, rgba(38, 94, 115, 1) 100%);
     font-size: 1.3rem;
-    justify-self: flex-end;
     border-radius: 10px;
 }
 #remove-container > button {
@@ -189,10 +198,13 @@ html {
     border: none;
 }
 @media only screen and (max-width: 600px) {
+    /* phones dont need volume because they use native buttons */
     #volume-container {
         display: none;
     }
     #player {
+        height: 100vh;
+        width: 100vw;
         overflow: hidden;
         display: flex;
         flex-direction: column;
