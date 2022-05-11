@@ -6,7 +6,8 @@ const Login = () => {
     const login = function () {
         //send auth req to spotify
         const client_id = "ae780b9e7bf4476285fcfc7475fc2664";
-        const redirect_uri = "https://solartify.web.app/main";
+        const redirect_uri = "https://solartify.web.app/main"; //prod
+        // const redirect_uri = "http://localhost:3000/main"; //dev
 
         let state: string | boolean = (() => {
             const length = 36;

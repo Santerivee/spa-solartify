@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import Spinner from "./Spinner";
-import "../../styles/no_overflow.css";
 import { IWebPlaybackState, ICurrent, IPlaylistObj } from "../../types";
 import { ErrorModal } from "./ErrorModal";
 import { Link } from "react-router-dom";
+import { parse } from "path";
+import { threadId } from "worker_threads";
 
 const Player = ({ playlistObj, authObj }: any) => {
     /* playlistObj: {
@@ -12,6 +13,7 @@ const Player = ({ playlistObj, authObj }: any) => {
         id: playlist["id"],
         uri: playlist["uri"],
         img: image,
+        length: playlist["tracks"]["total"],
     }*/
     const [thisPlaylist, setThisPlaylist] = useState<IPlaylistObj | null>(null);
     const [thisQueue, setThisQueue] = useState<any>(null);
@@ -24,6 +26,9 @@ const Player = ({ playlistObj, authObj }: any) => {
     const [playlist, setPlaylist] = playlistObj;
 
     const [error, setError] = useState<Error | string | null>(null);
+
+    //look away
+    (async () => (document.querySelector("html").style.overflow = "visible"))();
 
     const defaultHeaders = [
         ["Authorization", "Bearer " + authObj["access_token"]],
@@ -53,7 +58,6 @@ const Player = ({ playlistObj, authObj }: any) => {
 
             thisPlayer.addListener("ready", ({ device_id }: any) => {
                 setMetaData({ device_id });
-                console.log("Ready with Device ID", device_id);
             });
 
             thisPlayer.addListener("not_ready", ({ device_id }: any) => {
@@ -72,16 +76,21 @@ const Player = ({ playlistObj, authObj }: any) => {
 
                 if (!webPlaybackState) return;
                 setSeek(webPlaybackState["position"]);
-                if (!current || webPlaybackState["duration"] !== current!["currentSong"]["duration_ms"]) {
+                if (
+                    (!current || webPlaybackState["duration"] !== current!["currentSong"]["duration_ms"]) &&
+                    webPlaybackState["track_window"]["current_track"] !== null
+                ) {
                     //song has changed, update current
                     const artists: string[] = [];
+                    const nextArtists: string[] = [];
+
                     for (let i = 0; i < webPlaybackState["track_window"]["current_track"]["artists"].length; i++) {
                         artists.push(webPlaybackState["track_window"]["current_track"]["artists"][i]["name"]);
                     }
-                    const nextArtists: string[] = [];
                     for (let i = 0; i < webPlaybackState["track_window"]["next_tracks"][0]["artists"].length; i++) {
                         nextArtists.push(webPlaybackState["track_window"]["next_tracks"][0]["artists"][i]["name"]);
                     }
+
                     setCurrent({
                         currentSong: {
                             name: webPlaybackState["track_window"]["current_track"]["name"],
@@ -115,68 +124,119 @@ const Player = ({ playlistObj, authObj }: any) => {
     }, []);
 
     useEffect(() => {
-        //get songs w/ recursive func because spotify only returns 50 at a time
-        if (!thisPlaylist) {
-            return;
-        }
-        (() => {
-            async function getPlaylists(lastTotal = 0, lastArray: any[] = []) {
-                const data = await fetch(BASEURL + "playlists/" + thisPlaylist["id"] + "/tracks?limit=50&offset=" + lastTotal, {
-                    headers: defaultHeaders,
-                })
-                    .then((response) => response.json())
-                    .then((data) => data)
-                    .catch((e: Error) => setError(e));
+        if (!thisPlaylist) return;
+        try {
+            const raw = window.localStorage.getItem("tracks");
+            const obj: { playlist_info: IPlaylistObj; tracks: string[] } = JSON.parse(raw);
+            const info: IPlaylistObj = obj["playlist_info"];
 
-                data["items"].forEach((item: any) => {
-                    lastArray.push(item["track"]["uri"]);
-                });
+            if (info["id"] === thisPlaylist["id"] && info["total"] === thisPlaylist["total"]) {
+                console.log("cache used, skipping fetch to shuffle");
 
-                //@ts-ignore
-                setSpinnerPercentage(parseInt((lastTotal / parseInt(data["total"])) * 100));
-
-                //if total is not maxed out, it means there are no more playlists left
-                if (data["items"].length !== 50 || lastTotal > 5000) {
-                    shufflePlaylist(lastArray);
-                }
-                //if total is maxed out, we need to get the next 50 playlists
-                else {
-                    getPlaylists(lastTotal + 50, lastArray);
-                }
-
-                function shufflePlaylist(array: string[]) {
-                    const len = array.length - 1;
-                    for (let i = len; i > 0; i--) {
-                        const j = Math.floor(Math.random() * (i + 1));
-
-                        [array[i], array[j]] = [array[j], array[i]];
-                    }
-                    if (len > 100) array.length = 100;
-                    setThisQueue(array);
-                }
+                shufflePlaylist(obj["tracks"]);
+                return;
             }
-            getPlaylists();
+        } catch (e) {
+            console.log("no playlist in localstorage");
+            console.log(e);
+        }
+
+        (() => {
+            // fetch songs and shuffle them and set queue
+            const tracks: string[] = [];
+            get50Tracks();
+            // spotify only allows you to fetch 50 tracks in one request
+            // this used to be concurrent but managing the rate limiting is not fun
+            async function get50Tracks(offset: number = 0): Promise<string[]> {
+                return new Promise((resolve, reject) => {
+                    fetch(BASEURL + "playlists/" + thisPlaylist["id"] + "/tracks?limit=50&offset=" + offset, {
+                        headers: defaultHeaders,
+                    })
+                        .then((response) => {
+                            if (response.status === 429) {
+                                const wait = parseInt(response.headers.get("retry-after"));
+                                console.log({ wait });
+                                setTimeout(() => {
+                                    //idk if this actually works
+                                    return get50Tracks(offset);
+                                }, wait);
+                            } else if (!(response.status > 199 && response.status < 300)) {
+                                console.log(response);
+                            } else {
+                                return response.json();
+                            }
+                        })
+                        .then((data: SpotifyApi.PlaylistTrackResponse) => {
+                            data["items"].forEach((item) => {
+                                tracks.push(item["track"]["uri"]);
+                            });
+                            if (offset >= thisPlaylist["total"]) {
+                                shufflePlaylist(tracks);
+                            } else {
+                                get50Tracks(offset + 50);
+                            }
+                        })
+                        .catch((e) => console.log(e));
+                    // .catch((e: Error) => {
+                    //     reject(e);
+                    //     console.log(e);
+                    // });
+                });
+            }
         })();
+        // shuffle tracks and set queue
+        function shufflePlaylist(tracks: string[]) {
+            const len = tracks.length - 1;
+            for (let i = len; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+
+                [tracks[i], tracks[j]] = [tracks[j], tracks[i]];
+            }
+            if (len > 100) tracks.length = 100;
+
+            setThisQueue(tracks);
+            window.localStorage.setItem(
+                "tracks",
+                JSON.stringify({
+                    playlist_info: thisPlaylist,
+                    tracks: tracks,
+                })
+            );
+        }
+
         return () => {};
     }, [thisPlaylist]);
 
     useEffect(() => {
-        //start playing custom queue
         if (!metaData) {
             return;
         }
-        fetch(BASEURL + "me/player/play?device_id=" + metaData["device_id"], {
-            method: "PUT",
-            headers: defaultHeaders,
-            body: JSON.stringify({
-                uris: thisQueue,
-            }),
-        }).catch((e: Error) => setError(e));
+        function handleSetQueueError(res: any) {
+            console.log(res);
+            if (res.status === 502) {
+                //bad gateway
+                setTimeout(() => setQueue(), 1000);
+            }
+        }
+        //start playing custom queue
+        function setQueue() {
+            fetch(BASEURL + "me/player/play?device_id=" + metaData["device_id"], {
+                method: "PUT",
+                headers: defaultHeaders,
+                body: JSON.stringify({
+                    uris: thisQueue,
+                }),
+            })
+                .then((res) => (/* res.status.startsWith("2") */ res.ok ? null : handleSetQueueError(res)))
+                .catch((e: Error) => console.log(e));
+        }
+        setQueue();
 
         return () => {};
     }, [thisQueue, metaData]);
 
     useEffect(() => {
+        //automatically increment seek
         setInterval(() => {
             setSeek((prev) => prev + 1000);
         }, 1000);
@@ -253,86 +313,70 @@ const Player = ({ playlistObj, authObj }: any) => {
             </div>
 
             <div id="skip-container">
-                <div id="skip-button-container">
-                    <button onClick={() => skip("prev")} className="btn skip-btn" id="prev-btn">
-                        {/* <!-- https://www.svgrepo.com/svg/42622/back --> */}
-                        <svg
-                            version="1.1"
-                            id="prev-svg"
-                            xmlns="http://www.w3.org/2000/svg"
-                            xmlnsXlink="http://www.w3.org/1999/xlink"
-                            viewBox="0 0 300 300"
-                        >
-                            <defs>
-                                <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" style={{ stopColor: " rgb(119, 184, 174)", stopOpacity: "1" }} />
-                                    <stop offset="100%" style={{ stopColor: "rgb(60, 155, 189)", stopOpacity: "1" }} />
-                                </linearGradient>
-                            </defs>
-                            <path
-                                fill="url(#grad1)"
-                                d="M150,0C67.157,0,0,67.157,0,150c0,82.841,67.157,150,150,150c82.838,0,150-67.162,150-150C300,67.159,232.838,0,150,0z     M217.343,203.764c0,3.704-1.979,7.132-5.187,8.982c-1.605,0.926-3.4,1.393-5.187,1.393c-1.792,0-3.582-0.467-5.187-1.393    l-81.103-46.823c-0.993-0.573-1.854-1.312-2.594-2.153v35.955c0,9.498-7.7,17.198-17.198,17.198s-17.198-7.7-17.198-17.198    v-89.078h0.002c0-9.498,7.7-17.198,17.198-17.198c9.498,0,17.198,7.7,17.198,17.198v39.465c0.739-0.84,1.6-1.58,2.594-2.155    l81.1-46.823c3.211-1.854,7.164-1.854,10.375,0c3.208,1.852,5.187,5.278,5.187,8.984V203.764z"
-                            />
-                        </svg>
-                    </button>
-                    <button onClick={() => skip("pause-play")} className="btn" id="play-btn">
-                        {/*  <!-- https://www.svgrepo.com/svg/100677/pause-button --> */}
-                        <svg
-                            id="play-svg"
-                            version="1.1"
-                            xmlns="http://www.w3.org/2000/svg"
-                            xmlnsXlink="http://www.w3.org/1999/xlink"
-                            viewBox="0 0 512 512"
-                            xmlSpace="preserve"
-                        >
-                            <defs>
-                                <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" style={{ stopColor: "rgb(119, 184, 174)", stopOpacity: "1" }} />
-                                    <stop offset="100%" style={{ stopColor: "rgb(60, 155, 189)", stopOpacity: "1" }} />
-                                </linearGradient>
-                            </defs>
-                            <path
-                                fill="url(#grad1)"
-                                d="M256,0C114.617,0,0,114.615,0,256s114.617,256,256,256s256-114.615,256-256S397.383,0,256,0z M224,320  c0,8.836-7.164,16-16,16h-32c-8.836,0-16-7.164-16-16V192c0-8.836,7.164-16,16-16h32c8.836,0,16,7.164,16,16V320z M352,320  c0,8.836-7.164,16-16,16h-32c-8.836,0-16-7.164-16-16V192c0-8.836,7.164-16,16-16h32c8.836,0,16,7.164,16,16V320z"
-                            />
-                        </svg>
-                    </button>
-                    <button onClick={() => skip("next")} className="btn skip-btn" id="skip-btn">
-                        <svg
-                            version="1.1"
-                            id="skip-svg"
-                            xmlns="http://www.w3.org/2000/svg"
-                            xmlnsXlink="http://www.w3.org/1999/xlink"
-                            viewBox="0 0 300 300"
-                        >
-                            <defs>
-                                <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" style={{ stopColor: "rgb(119, 184, 174)", stopOpacity: "1" }} />
-                                    <stop offset="100%" style={{ stopColor: "rgb(60, 155, 189)", stopOpacity: "1" }} />
-                                </linearGradient>
-                            </defs>
+                <button onClick={() => skip("prev")} className="btn skip-btn" id="prev-btn">
+                    {/* <!-- https://www.svgrepo.com/svg/42622/back --> */}
+                    <svg
+                        version="1.1"
+                        id="prev-svg"
+                        xmlns="http://www.w3.org/2000/svg"
+                        xmlnsXlink="http://www.w3.org/1999/xlink"
+                        viewBox="0 0 300 300"
+                    >
+                        <defs>
+                            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style={{ stopColor: " rgb(119, 184, 174)", stopOpacity: "1" }} />
+                                <stop offset="100%" style={{ stopColor: "rgb(60, 155, 189)", stopOpacity: "1" }} />
+                            </linearGradient>
+                        </defs>
+                        <path
+                            fill="url(#grad1)"
+                            d="M150,0C67.157,0,0,67.157,0,150c0,82.841,67.157,150,150,150c82.838,0,150-67.162,150-150C300,67.159,232.838,0,150,0z     M217.343,203.764c0,3.704-1.979,7.132-5.187,8.982c-1.605,0.926-3.4,1.393-5.187,1.393c-1.792,0-3.582-0.467-5.187-1.393    l-81.103-46.823c-0.993-0.573-1.854-1.312-2.594-2.153v35.955c0,9.498-7.7,17.198-17.198,17.198s-17.198-7.7-17.198-17.198    v-89.078h0.002c0-9.498,7.7-17.198,17.198-17.198c9.498,0,17.198,7.7,17.198,17.198v39.465c0.739-0.84,1.6-1.58,2.594-2.155    l81.1-46.823c3.211-1.854,7.164-1.854,10.375,0c3.208,1.852,5.187,5.278,5.187,8.984V203.764z"
+                        />
+                    </svg>
+                </button>
+                <button onClick={() => skip("pause-play")} className="btn" id="play-btn">
+                    {/*  <!-- https://www.svgrepo.com/svg/100677/pause-button --> */}
+                    <svg
+                        id="play-svg"
+                        version="1.1"
+                        xmlns="http://www.w3.org/2000/svg"
+                        xmlnsXlink="http://www.w3.org/1999/xlink"
+                        viewBox="0 0 512 512"
+                        xmlSpace="preserve"
+                    >
+                        <defs>
+                            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style={{ stopColor: "rgb(119, 184, 174)", stopOpacity: "1" }} />
+                                <stop offset="100%" style={{ stopColor: "rgb(60, 155, 189)", stopOpacity: "1" }} />
+                            </linearGradient>
+                        </defs>
+                        <path
+                            fill="url(#grad1)"
+                            d="M256,0C114.617,0,0,114.615,0,256s114.617,256,256,256s256-114.615,256-256S397.383,0,256,0z M224,320  c0,8.836-7.164,16-16,16h-32c-8.836,0-16-7.164-16-16V192c0-8.836,7.164-16,16-16h32c8.836,0,16,7.164,16,16V320z M352,320  c0,8.836-7.164,16-16,16h-32c-8.836,0-16-7.164-16-16V192c0-8.836,7.164-16,16-16h32c8.836,0,16,7.164,16,16V320z"
+                        />
+                    </svg>
+                </button>
+                <button onClick={() => skip("next")} className="btn skip-btn" id="skip-btn">
+                    <svg
+                        version="1.1"
+                        id="skip-svg"
+                        xmlns="http://www.w3.org/2000/svg"
+                        xmlnsXlink="http://www.w3.org/1999/xlink"
+                        viewBox="0 0 300 300"
+                    >
+                        <defs>
+                            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style={{ stopColor: "rgb(119, 184, 174)", stopOpacity: "1" }} />
+                                <stop offset="100%" style={{ stopColor: "rgb(60, 155, 189)", stopOpacity: "1" }} />
+                            </linearGradient>
+                        </defs>
 
-                            <path
-                                fill="url(#grad1)"
-                                d="M150,0C67.162,0,0,67.159,0,150s67.162,150,150,150c82.843,0,150-67.162,150-150C300,67.157,232.843,0,150,0z     M216.312,199.725h-0.003c0,9.498-7.7,17.198-17.198,17.198c-9.498,0-17.198-7.7-17.198-17.198V163.77    c-0.739,0.84-1.6,1.58-2.594,2.153l-81.098,46.82c-1.605,0.926-3.395,1.393-5.187,1.393c-1.787,0-3.582-0.467-5.187-1.393    c-3.208-1.849-5.187-5.278-5.187-8.982v-93.643c0-3.706,1.979-7.132,5.187-8.984c3.211-1.854,7.164-1.854,10.375,0l81.1,46.823    c0.993,0.576,1.854,1.315,2.594,2.155v-39.465c0-9.498,7.7-17.198,17.198-17.198s17.198,7.7,17.198,17.198V199.725z"
-                            />
-                        </svg>
-                    </button>
-                </div>
-                {/* <div id="skip-info">
-                    <div id="next-info">
-                        <p id="next-song-name">{current["nextSong"]["name"]}</p>
-                        <p id="next-song-artist">{current["nextSong"]["artist"]} </p>
-                    </div>
-                    <img
-                        id="next-song-cover"
-                        src={
-                            current["nextSong"]["cover"] ||
-                            "playlistObj:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="
-                        }
-                        alt="cover art of next song"
-                    />
-                </div> */}
+                        <path
+                            fill="url(#grad1)"
+                            d="M150,0C67.162,0,0,67.159,0,150s67.162,150,150,150c82.843,0,150-67.162,150-150C300,67.157,232.843,0,150,0z     M216.312,199.725h-0.003c0,9.498-7.7,17.198-17.198,17.198c-9.498,0-17.198-7.7-17.198-17.198V163.77    c-0.739,0.84-1.6,1.58-2.594,2.153l-81.098,46.82c-1.605,0.926-3.395,1.393-5.187,1.393c-1.787,0-3.582-0.467-5.187-1.393    c-3.208-1.849-5.187-5.278-5.187-8.982v-93.643c0-3.706,1.979-7.132,5.187-8.984c3.211-1.854,7.164-1.854,10.375,0l81.1,46.823    c0.993,0.576,1.854,1.315,2.594,2.155v-39.465c0-9.498,7.7-17.198,17.198-17.198s17.198,7.7,17.198,17.198V199.725z"
+                        />
+                    </svg>
+                </button>
             </div>
 
             <div className="range-container" id="seek-container">
@@ -367,7 +411,13 @@ const Player = ({ playlistObj, authObj }: any) => {
                 </label>
                 <input
                     onChange={(e) => {
-                        player.setVolume(parseInt(e.target.value) / 100).then(() => setVolume(parseInt(e.target.value)));
+                        //@ts-ignore
+                        const settable = e.target.value / 100;
+
+                        player.setVolume(settable).then(() => {
+                            //@ts-ignore
+                            setVolume(parseInt(settable * 100));
+                        });
                     }}
                     className="range"
                     type="range"

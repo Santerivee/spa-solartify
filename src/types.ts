@@ -89,4 +89,5 @@ export interface IPlaylistObj {
     id: string;
     uri: string;
     img: string;
+    total: number;
 }
