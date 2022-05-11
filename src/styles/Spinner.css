@@ -1,3 +1,11 @@
+#spinner-container {
+    margin: 15vh auto;
+    text-align: center;
+}
+#spinner-container > p {
+    margin: 15px auto;
+}
+
 #spinner {
     /*https://www.w3schools.com/howto/howto_css_loader.asp*/
     border: 16px solid #c5c5c5;
@@ -9,6 +17,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    margin: 15px auto;
 }
 #spinner-percentage {
     animation: spin 2s linear reverse infinite;
