@@ -1,20 +1,24 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Spinner from "./Spinner";
+import "../../styles/index.css";
+import { IPlaylistObj } from "../../types";
+import { builtinModules } from "module";
 
 const Playlists = ({ playlistObj, authObj }: { playlistObj: [any, React.Dispatch<any>]; authObj: any }) => {
     const [playlist, setPlaylist] = playlistObj;
-    const [PlaylistList, setPlaylistList] =
-        useState<Array<{ name: string; external_url: string; id: string; uri: string; img: string; total: number }>>(null);
+    const [PlaylistList, setPlaylistList] = useState<Array<IPlaylistObj | null>>(null);
     const [searchState, setSearchState] = useState("");
 
     //surely i will not resort to this in a react app?
     (async () => (document.querySelector("html").style.overflow = "visible"))();
 
     useEffect(() => {
-        const BASEURL = "https://api.spotify.com/v1/";
-
         if (!authObj || PlaylistList) return;
+
+        const BASEURL = "https://api.spotify.com/v1/";
+        const idArray: string[] = JSON.parse(window.localStorage.getItem("idarray")) || [];
+
         (async (): Promise<void> => {
             // const user = await fetch(BASEURL + "me", {
             //     headers: [
@@ -48,15 +52,18 @@ const Playlists = ({ playlistObj, authObj }: { playlistObj: [any, React.Dispatch
                                 image = playlist["images"][0]["url"];
                             }
                         }
-                        //@ts-ignore
-                        lastArray.push({
+                        const pushable: IPlaylistObj = {
                             name: playlist["name"],
                             external_url: playlist["external_urls"]["spotify"],
                             id: playlist["id"],
                             uri: playlist["uri"],
                             img: image,
                             total: playlist["tracks"]["total"],
-                        });
+                            toSave: false,
+                            alreadySaved: idArray.includes(playlist["id"]),
+                        };
+
+                        lastArray.push(pushable);
                     });
 
                     //if total is not maxed out, it means we have all the playlists
@@ -103,58 +110,90 @@ const Playlists = ({ playlistObj, authObj }: { playlistObj: [any, React.Dispatch
             ></input>
 
             <div id="playlists-container">
-                {PlaylistList.filter((val) => val["name"].toUpperCase().includes(searchState.toUpperCase())).map((playlist: any) => {
+                {PlaylistList.filter((val) => val["name"].toUpperCase().includes(searchState.toUpperCase())).map((playlist) => {
+                    /* interface IPlaylistObj {
+                            name: string;
+                            external_url: string;
+                            id: string;
+                            uri: string;
+                            img: string;
+                            total: number;
+                            toSave: boolean;
+                        } */
+
                     return (
                         <div title={"Choose playlist " + playlist["name"]} className="playlist-item" key={playlist["id"]}>
-                            <img onClick={() => setPlaylist(playlist)} src={playlist["img"]} alt={playlist["name"]} />
-                            <h5
-                                onClick={() => {
-                                    setPlaylist(playlist);
-                                }}
-                            >
-                                {playlist["name"]}{" "}
-                            </h5>
+                            <img onClick={() => setPlaylist(playlist)} src={playlist["img"]} alt={playlist["name"] + " cover art"} />
+                            <h5 onClick={() => setPlaylist(playlist)}>{playlist["name"]} </h5>
 
-                            <a href={"https://open.spotify.com/playlist/" + playlist["id"]} rel="noreferrer" target="_blank">
-                                <svg id="external-link-svg" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
-                                    <rect id="external-link-btn" x="0" y="0" width="50" height="50" onClick={() => alert("click!")} />
+                            <div
+                                onClick={(e) => {
+                                    if (playlist["alreadySaved"]) return;
+                                    const lastState = playlist["toSave"];
+                                    const newState = !playlist["toSave"];
+
+                                    //@ts-ignore
+                                    const svg = e.target.childNodes[0];
+                                    const children = svg.children;
+                                    for (const child of children) {
+                                        child.style.fill = newState ? "green" : "black";
+                                    }
+                                    playlist["toSave"] = newState;
+                                }}
+                                title="Save playlist"
+                                className={"playlist-save-container" + (playlist["alreadySaved"] ? " playlist-already-saved" : "")}
+                            >
+                                <svg
+                                    className="playlist-save-svg"
+                                    width="45"
+                                    height="48"
+                                    viewBox="0 0 45 48"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                >
                                     <path
+                                        className="playlist-save-svg-path"
                                         fillRule="evenodd"
                                         clipRule="evenodd"
-                                        d="M3 50C1.34315 50 0 48.6569 0 47V8C0 6.34314 1.34315 5 3 5C4.65685 5 6 6.34314 6 8V47C6 48.6569 4.65685 50 3 50Z"
+                                        d="M21.4746 15.8308C23.1288 15.7374 24.5456 17.0026 24.639 18.6568L26.0609 43.8277C26.1543 45.4819 24.8891 46.8987 23.2348 46.9921C21.5806 47.0855 20.1639 45.8203 20.0704 44.1661L18.6486 18.9952C18.5551 17.341 19.8204 15.9243 21.4746 15.8308Z"
+                                        fill="black"
                                     />
                                     <path
+                                        className="playlist-save-svg-path"
                                         fillRule="evenodd"
                                         clipRule="evenodd"
-                                        d="M0 47C0 45.3431 1.34315 44 3 44H42C43.6569 44 45 45.3431 45 47C45 48.6569 43.6569 50 42 50H3C1.34315 50 0 48.6569 0 47Z"
+                                        d="M32.9419 32.9381C34.1776 34.0417 34.2848 35.9382 33.1811 37.174L25.1879 46.1243C24.0843 47.3601 22.1878 47.4672 20.952 46.3636C19.7162 45.2599 19.6091 43.3635 20.7127 42.1277L28.706 33.1774C29.8096 31.9416 31.7061 31.8345 32.9419 32.9381Z"
+                                        fill="black"
                                     />
                                     <path
+                                        className="playlist-save-svg-path"
                                         fillRule="evenodd"
                                         clipRule="evenodd"
-                                        d="M45 26V46C45 47.6569 43.6569 49 42 49C40.3431 49 39 47.6569 39 46V26H45Z"
+                                        d="M25.1879 46.1243C24.0843 47.3601 22.1878 47.4672 20.952 46.3636L12.0017 38.3704C10.7659 37.2667 10.6588 35.3703 11.7624 34.1345C12.866 32.8987 14.7625 32.7916 15.9983 33.8952L24.9486 41.8884C26.1844 42.9921 26.2915 44.8885 25.1879 46.1243Z"
+                                        fill="black"
                                     />
                                     <path
+                                        className="playlist-save-svg-path"
                                         fillRule="evenodd"
                                         clipRule="evenodd"
-                                        d="M26.8787 22.9481C25.7071 21.7766 25.7071 19.8771 26.8787 18.7055L44.7055 0.878664C45.8771 -0.292909 47.7766 -0.292908 48.9482 0.878664C50.1197 2.05024 50.1197 3.94973 48.9482 5.1213L31.1213 22.9481C29.9497 24.1197 28.0502 24.1197 26.8787 22.9481Z"
+                                        d="M0 3C0 1.34315 1.34315 0 3 0H42C43.6569 0 45 1.34315 45 3C45 4.65685 43.6569 6 42 6H3C1.34315 6 0 4.65685 0 3Z"
+                                        fill="black"
                                     />
                                     <path
+                                        className="playlist-save-svg-path"
                                         fillRule="evenodd"
                                         clipRule="evenodd"
-                                        d="M32 3C32 1.34314 33.3431 -3.63807e-06 35 -3.38769e-06L47 -1.57424e-06C48.6569 -1.32386e-06 50 1.34314 50 3C50 4.65685 48.6569 6 47 6L35 6C33.3431 6 32 4.65685 32 3Z"
+                                        d="M42 0C43.6569 0 45 1.34315 45 3V35H39V3C39 1.34315 40.3431 0 42 0Z"
+                                        fill="black"
                                     />
                                     <path
+                                        className="playlist-save-svg-path"
                                         fillRule="evenodd"
                                         clipRule="evenodd"
-                                        d="M47 -1.57424e-06C48.6569 -1.32386e-06 50 1.34314 50 3V15C50 16.6569 48.6569 18 47 18C45.3431 18 44 16.6569 44 15V3C44 1.34314 45.3431 -1.57424e-06 47 -1.57424e-06Z"
-                                    />
-                                    <path
-                                        fillRule="evenodd"
-                                        clipRule="evenodd"
-                                        d="M0 8C0 6.34314 1.34315 5 3 5H24V11H3C1.34315 11 0 9.65685 0 8Z"
+                                        d="M3 0C4.65685 0 6 1.34315 6 3V35H0V3C0 1.34315 1.34315 0 3 0Z"
+                                        fill="black"
                                     />
                                 </svg>
-                            </a>
+                            </div>
                         </div>
                     );
                 })}

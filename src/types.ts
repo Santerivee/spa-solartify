@@ -90,4 +90,6 @@ export interface IPlaylistObj {
     uri: string;
     img: string;
     total: number;
+    toSave: boolean;
+    alreadySaved: boolean;
 }
