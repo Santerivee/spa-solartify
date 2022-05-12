@@ -115,6 +115,11 @@ html {
     /*when resizing to very small and then resizing to normal, 
     the buttons would not resize up, rather they stayed small.
     this fixes it because im lazy. */
+<<<<<<< HEAD:src/styles/index.css
+=======
+    min-width: 30%;
+    min-height: 30px;
+>>>>>>> master:src/index.css
     margin: 5px;
     width: 100%;
     display: flex;
