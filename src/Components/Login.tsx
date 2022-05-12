@@ -1,5 +1,9 @@
 import React, { useState } from "react";
 import "../styles/Login.css";
+import redirect_uri from "../redirect_uri";
+
+// export const redirect_uri = "https://solartify.web.app/main"; //prod
+// // export const redirect_uri = "http://localhost:3000/main"; //dev
 
 const Login = () => {
     const [checked, setChecked] = useState(true);
@@ -7,10 +11,6 @@ const Login = () => {
         //send auth req to spotify
 
         const client_id = "ae780b9e7bf4476285fcfc7475fc2664";
-
-        //todo test this automatcially lol
-        const redirect_uri = "https://solartify.web.app/main"; //prod
-        // const redirect_uri = "http://localhost:3000/main"; //dev
 
         let state: string | boolean = (() => {
             const length = 36;
