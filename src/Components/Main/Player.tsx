@@ -20,6 +20,7 @@ const Player = ({ playlistObj, authObj }: any) => {
     const [player, setPlayer] = useState<any>(null);
     const [metaData, setMetaData] = useState<any>(null);
     const [spinnerPercentage, setSpinnerPercentage] = useState<number>(0);
+    const [spinnerText, setSpinnerText] = useState("Waiting for spotify api");
     const [current, setCurrent] = useState<ICurrent | null>(null);
     const [volume, setVolume] = useState(0.01);
     const [seek, setSeek] = useState(0);
@@ -66,10 +67,16 @@ const Player = ({ playlistObj, authObj }: any) => {
             ["initialization_error", "authentication_error", "account_error", "playback_error"].forEach((name) => {
                 thisPlayer.addListener(name, () => {
                     setError(name);
+                    setSpinnerText(name);
                 });
             });
 
-            thisPlayer.connect().then((success: boolean) => (!success ? setError("spotify sdk error") : null));
+            thisPlayer.connect().then((success: boolean) => {
+                if (!success) {
+                    setError("spotify sdk error");
+                    setSpinnerText("spotify sdk error");
+                }
+            });
 
             thisPlayer.addListener("player_state_changed", (webPlaybackState: IWebPlaybackState) => {
                 console.log("player state change");
@@ -126,24 +133,32 @@ const Player = ({ playlistObj, authObj }: any) => {
     useEffect(() => {
         if (!thisPlaylist) return;
         try {
-            const raw = window.localStorage.getItem("tracks");
-            const obj: { playlist_info: IPlaylistObj; tracks: string[] } = JSON.parse(raw);
-            const info: IPlaylistObj = obj["playlist_info"];
-
-            if (info["id"] === thisPlaylist["id"] && info["total"] === thisPlaylist["total"]) {
-                console.log("cache used, skipping fetch to shuffle");
-
-                shufflePlaylist(obj["tracks"]);
-                return;
+            if (thisPlaylist["alreadySaved"]) {
+                const dbTracks = JSON.parse(window.localStorage.getItem(thisPlaylist["id"])) || null;
+                console.log(thisPlaylist["total"], dbTracks.length);
+                if (thisPlaylist["total"] === dbTracks.length) {
+                    shufflePlaylist(dbTracks);
+                    return;
+                } else {
+                    setThisPlaylist((last) => {
+                        last["alreadySaved"] = false;
+                        last["toSave"] = true;
+                        console.log(last);
+                        return last;
+                    });
+                }
             }
         } catch (e) {
-            console.log("no playlist in localstorage");
+            console.log("idarray or " + thisPlaylist["id"] + " not in localstorage");
             console.log(e);
+            //@ts-ignore
+            setSpinnerText(e);
         }
 
         (() => {
             // fetch songs and shuffle them and set queue
             const tracks: string[] = [];
+            setSpinnerText("Getting your tracks");
             get50Tracks();
             // spotify only allows you to fetch 50 tracks in one request
             // this used to be concurrent but managing the rate limiting is not fun
@@ -159,7 +174,7 @@ const Player = ({ playlistObj, authObj }: any) => {
                                 setTimeout(() => {
                                     //idk if this actually works
                                     return get50Tracks(offset);
-                                }, wait);
+                                }, wait * 1000);
                             } else if (!(response.status > 199 && response.status < 300)) {
                                 console.log(response);
                             } else {
@@ -188,6 +203,7 @@ const Player = ({ playlistObj, authObj }: any) => {
         })();
         // shuffle tracks and set queue
         function shufflePlaylist(tracks: string[]) {
+            setSpinnerText("Shuffling your playlist");
             const len = tracks.length - 1;
             for (let i = len; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -197,13 +213,38 @@ const Player = ({ playlistObj, authObj }: any) => {
             if (len > 100) tracks.length = 100;
 
             setThisQueue(tracks);
-            window.localStorage.setItem(
-                "tracks",
-                JSON.stringify({
-                    playlist_info: thisPlaylist,
-                    tracks: tracks,
-                })
-            );
+
+            if (thisPlaylist["toSave"] && !thisPlaylist["alreadySaved"]) {
+                const db = window.localStorage;
+                const idArray: string[] = JSON.parse(db.getItem("idarray")) || [];
+
+                // let newArr;
+                if (!idArray.includes(thisPlaylist["id"])) {
+                    idArray.push(thisPlaylist["id"]);
+                } else {
+                    //uncomment this if duplicates start popping up
+                    /* newArr = (() => {
+                        // https://stackoverflow.com/questions/9229645/remove-duplicate-values-from-js-array
+                        let a = idArray;
+                        var seen = {};
+                        var out = [];
+                        var len = a.length;
+                        var j = 0;
+                        for (var i = 0; i < len; i++) {
+                            var item = a[i];
+                            //@ts-ignore
+                            if (seen[item] !== 1) {
+                                //@ts-ignore
+                                seen[item] = 1;
+                                out[j++] = item;
+                            }
+                        }
+                        return out;
+                    })(); */
+                }
+                db.setItem(thisPlaylist["id"], JSON.stringify(tracks));
+                db.setItem("idarray", JSON.stringify(idArray));
+            }
         }
 
         return () => {};
@@ -221,7 +262,11 @@ const Player = ({ playlistObj, authObj }: any) => {
             }
         }
         //start playing custom queue
-        function setQueue() {
+        function setQueue(stackCounter = 0) {
+            if (stackCounter > 3) {
+                setError("Unable to start playback");
+                return;
+            }
             fetch(BASEURL + "me/player/play?device_id=" + metaData["device_id"], {
                 method: "PUT",
                 headers: defaultHeaders,
@@ -230,7 +275,12 @@ const Player = ({ playlistObj, authObj }: any) => {
                 }),
             })
                 .then((res) => (/* res.status.startsWith("2") */ res.ok ? null : handleSetQueueError(res)))
-                .catch((e: Error) => console.log(e));
+                .catch((e: Error) => {
+                    console.log(e);
+                    setTimeout(() => {
+                        setQueue(stackCounter + 1);
+                    }, 1000);
+                });
         }
         setQueue();
 
@@ -269,7 +319,7 @@ const Player = ({ playlistObj, authObj }: any) => {
                 return;
         }
     };
-    if (!current) return <Spinner percentage={spinnerPercentage} text={"Waiting for spotify api"} />;
+    if (!current) return <Spinner percentage={spinnerPercentage} text={spinnerText} />;
     return (
         <main id="player">
             {error ? <ErrorModal error={error} /> : null}
