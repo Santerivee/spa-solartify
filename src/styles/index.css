@@ -112,10 +112,8 @@ html {
     margin: 5px;
 }
 #skip-container > button {
-    /*when resizing to very small and then resizing to normal, 
-    the buttons would not resize up, rather they stayed small.
-    this fixes it because im lazy. */
     margin: 5px;
+    height: 100%;
     width: 100%;
     display: flex;
     justify-content: center;
@@ -224,6 +222,7 @@ html {
     /* background: linear-gradient( rgba(100, 61, 140, 1) 0%, rgba(115, 38, 88, 1) 50%, rgba(100, 61, 140, 1) 100%); */
     background: repeating-linear-gradient(0deg, #573777, #732658, #573777 50%);
     overflow: visible;
+    overflow-x: hidden !important;
 }
 
 #playlists-logout-container {
@@ -277,36 +276,15 @@ html {
 }
 
 .playlist-save-container {
+    aspect-ratio: 1/1;
     align-self: center;
-    max-height: 24px;
+    max-height: 50px;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    margin-right: 10px;
+    margin: 5px 15px 5px 5px;
 }
 /* force to click  to parent div always */
 .playlist-save-container > * {
     pointer-events: none;
-}
-
-.playlist-save-svg {
-    flex: 2 0 24px;
-    overflow: visible;
-    z-index: 2;
-    width: 24px;
-    min-width: 24px;
-    max-width: 24px;
-
-    stroke-width: 0;
-}
-.playlist-save-svg > path {
-    stroke-width: 1;
-}
-
-.playlist-save-container:hover .playlist-save-svg > path {
-    fill: green !important;
-}
-
-.playlist-already-saved > path {
-    fill: blue;
 }

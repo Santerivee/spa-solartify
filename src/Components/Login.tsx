@@ -25,7 +25,6 @@ const Login = () => {
 
         //state to local storage if exists
         if (window.localStorage) {
-            console.log("localstorage state set");
             localStorage.setItem("state", state);
         } else {
             state = false;
