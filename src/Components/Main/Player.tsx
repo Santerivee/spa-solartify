@@ -3,8 +3,6 @@ import Spinner from "./Spinner";
 import { IWebPlaybackState, ICurrent, IPlaylistObj } from "../../types";
 import { ErrorModal } from "./ErrorModal";
 import { Link } from "react-router-dom";
-import { parse } from "path";
-import { threadId } from "worker_threads";
 
 const Player = ({ playlistObj, authObj }: any) => {
     /* playlistObj: {
@@ -25,6 +23,7 @@ const Player = ({ playlistObj, authObj }: any) => {
     const [volume, setVolume] = useState(0.01);
     const [seek, setSeek] = useState(0);
     const [playlist, setPlaylist] = playlistObj;
+    const [expireTime, setExpireTime] = useState(Date.now() + authObj["expires_in"] * 1000);
 
     const [error, setError] = useState<Error | string | null>(null);
 
@@ -50,8 +49,15 @@ const Player = ({ playlistObj, authObj }: any) => {
         window.onSpotifyWebPlaybackSDKReady = () => {
             //@ts-ignore
             const thisPlayer = new window.Spotify.Player({
-                name: "Web Playback SDK",
+                name: "Solartify web player",
                 getOAuthToken: (cb: any) => {
+                    console.log(Date.now());
+                    console.log(expireTime);
+                    if (Date.now() > expireTime) {
+                        player.disconnect();
+                        setError("Token expired. Please login again.");
+                        return;
+                    }
                     cb(authObj["access_token"]);
                 },
                 volume: volume,
