@@ -13,7 +13,7 @@ const Player = ({ playlistObj, authObj }: any) => {
         img: image,
         length: playlist["tracks"]["total"],
     }*/
-    const [thisPlaylist, setThisPlaylist] = useState<IPlaylistObj | null>(null);
+    const [thisPlaylist, setThisPlaylist] = useState<IPlaylistObj | null>(playlistObj[0]);
     const [thisQueue, setThisQueue] = useState<any>(null);
     const [player, setPlayer] = useState<any>(null);
     const [metaData, setMetaData] = useState<any>(null);
@@ -51,8 +51,6 @@ const Player = ({ playlistObj, authObj }: any) => {
             const thisPlayer = new window.Spotify.Player({
                 name: "Solartify web player",
                 getOAuthToken: (cb: any) => {
-                    console.log(Date.now());
-                    console.log(expireTime);
                     if (Date.now() > expireTime) {
                         player.disconnect();
                         setError("Token expired. Please login again.");
@@ -133,18 +131,19 @@ const Player = ({ playlistObj, authObj }: any) => {
 
             setPlayer(thisPlayer);
         };
-        setThisPlaylist(playlist);
+        getNewQueue();
     }, []);
 
-    useEffect(() => {
+    const getNewQueue = () => {
         if (!thisPlaylist) return;
         try {
             if (thisPlaylist["alreadySaved"]) {
                 const dbTracks = JSON.parse(window.localStorage.getItem(thisPlaylist["id"])) || null;
                 console.log(thisPlaylist["total"], dbTracks.length);
                 if (thisPlaylist["total"] === dbTracks.length) {
+                    console.log("playlist already saved");
+
                     shufflePlaylist(dbTracks);
-                    return;
                 } else {
                     setThisPlaylist((last) => {
                         last["alreadySaved"] = false;
@@ -152,7 +151,10 @@ const Player = ({ playlistObj, authObj }: any) => {
                         console.log(last);
                         return last;
                     });
+                    fetchTracks();
                 }
+            } else {
+                fetchTracks();
             }
         } catch (e) {
             console.log("idarray or " + thisPlaylist["id"] + " not in localstorage");
@@ -161,8 +163,8 @@ const Player = ({ playlistObj, authObj }: any) => {
             setSpinnerText(e);
         }
 
-        (() => {
-            // fetch songs and shuffle them and set queue
+        function fetchTracks() {
+            // fetch songs
             const tracks: string[] = [];
             setSpinnerText("Getting your tracks");
             get50Tracks();
@@ -206,21 +208,20 @@ const Player = ({ playlistObj, authObj }: any) => {
                     // });
                 });
             }
-        })();
+        }
         // shuffle tracks and set queue
         function shufflePlaylist(tracks: string[]) {
             setSpinnerText("Shuffling your playlist");
+            setSpinnerPercentage(0);
             const len = tracks.length - 1;
             for (let i = len; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
-
+                //@ts-ignore
                 [tracks[i], tracks[j]] = [tracks[j], tracks[i]];
             }
-            if (len > 100) tracks.length = 100;
-
-            setThisQueue(tracks);
 
             if (thisPlaylist["toSave"] && !thisPlaylist["alreadySaved"]) {
+                setSpinnerText("Saving your playlist");
                 const db = window.localStorage;
                 const idArray: string[] = JSON.parse(db.getItem("idarray")) || [];
 
@@ -251,15 +252,15 @@ const Player = ({ playlistObj, authObj }: any) => {
                 db.setItem(thisPlaylist["id"], JSON.stringify(tracks));
                 db.setItem("idarray", JSON.stringify(idArray));
             }
+            setSpinnerText("Starting playback");
+            if (len > 100) tracks.length = 100;
+            setThisQueue(tracks);
         }
-
-        return () => {};
-    }, [thisPlaylist]);
+    };
 
     useEffect(() => {
-        if (!metaData) {
-            return;
-        }
+        if (!metaData || !thisQueue) return;
+
         function handleSetQueueError(res: any) {
             console.log(res);
             if (res.status === 502) {
@@ -269,7 +270,7 @@ const Player = ({ playlistObj, authObj }: any) => {
         }
         //start playing custom queue
         function setQueue(stackCounter = 0) {
-            if (stackCounter > 3) {
+            if (stackCounter > 5) {
                 setError("Unable to start playback");
                 return;
             }
@@ -285,7 +286,7 @@ const Player = ({ playlistObj, authObj }: any) => {
                     console.log(e);
                     setTimeout(() => {
                         setQueue(stackCounter + 1);
-                    }, 1000);
+                    }, stackCounter * 1000);
                 });
         }
         setQueue();
@@ -341,7 +342,13 @@ const Player = ({ playlistObj, authObj }: any) => {
                         Log out
                     </button>
                 </Link>
-                <div onClick={() => setPlaylist(null)} id="current-playlist-container">
+                <div
+                    onClick={() => {
+                        setPlaylist(null);
+                        setThisQueue(null);
+                    }}
+                    id="current-playlist-container"
+                >
                     <img
                         src={
                             thisPlaylist["img"] ||
@@ -470,11 +477,11 @@ const Player = ({ playlistObj, authObj }: any) => {
                 <input
                     onChange={(e) => {
                         //@ts-ignore
-                        const settable = e.target.value / 100;
+                        const settable = e.target.value / 1000;
 
                         player.setVolume(settable).then(() => {
                             //@ts-ignore
-                            setVolume(parseInt(settable * 100));
+                            setVolume(parseInt(settable * 1000));
                         });
                     }}
                     className="range"
@@ -484,6 +491,7 @@ const Player = ({ playlistObj, authObj }: any) => {
                     name="volume"
                     min="0"
                     max="100"
+                    step="any"
                 />
             </div>
 
