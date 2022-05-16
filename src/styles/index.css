@@ -104,9 +104,11 @@ html {
 #song-name {
     font-size: 0.6em;
     font-weight: bold;
+overflow:hidden;
 }
 #artist-name {
     font-size: 0.48em;
+overlow:hidden;
 }
 .btn {
     padding: 5px;
@@ -123,7 +125,8 @@ html {
     margin: 5px;
 }
 #skip-container > button {
-    flex: 2 0 32%;
+     width:30%;
+    /*flex: 2 0 32%;*/
     /* max-width: 32%;
     height: 100%;
 
