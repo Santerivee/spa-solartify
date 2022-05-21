@@ -3,7 +3,7 @@
         "rules": "database.rules.json"
     },
     "hosting": {
-        "target": "solartify",
+        "site": "solartify",
         "public": "build",
         "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
         "rewrites": [
