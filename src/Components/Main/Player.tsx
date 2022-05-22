@@ -87,10 +87,7 @@ const Player = ({ playlistObj, authObj }: any) => {
 
                 if (!webPlaybackState) return;
                 setSeek(webPlaybackState["position"]);
-                if (
-                    (!current || webPlaybackState["duration"] !== current!["currentSong"]["duration_ms"]) &&
-                    webPlaybackState["track_window"]["current_track"] !== null
-                ) {
+                if ((!current || webPlaybackState["duration"] !== current!["currentSong"]["duration_ms"]) && webPlaybackState["track_window"]["current_track"] !== null) {
                     //song has changed, update current
                     const artists: string[] = [];
                     const nextArtists: string[] = [];
@@ -139,16 +136,14 @@ const Player = ({ playlistObj, authObj }: any) => {
         try {
             if (thisPlaylist["alreadySaved"]) {
                 const dbTracks = JSON.parse(window.localStorage.getItem(thisPlaylist["id"])) || null;
-                console.log(thisPlaylist["total"], dbTracks.length);
-                if (thisPlaylist["total"] === dbTracks.length) {
-                    console.log("playlist already saved");
 
+                if (thisPlaylist["total"] === dbTracks.length) {
                     shufflePlaylist(dbTracks);
                 } else {
                     setThisPlaylist((last) => {
                         last["alreadySaved"] = false;
                         last["toSave"] = true;
-                        console.log(last);
+
                         return last;
                     });
                     fetchTracks();
@@ -254,6 +249,8 @@ const Player = ({ playlistObj, authObj }: any) => {
             }
             setSpinnerText("Starting playback");
             if (len > 100) tracks.length = 100;
+            // put 'https://[PROJECT_ID].firebaseio/users/jack/name.json?access_token=CREDENTIAL'
+            // put https://solartify-default-rtdb.europe-west1.firebasedatabase.app/${user_id}.json?access_token=${access_token}
             setThisQueue(tracks);
         }
     };
@@ -281,7 +278,27 @@ const Player = ({ playlistObj, authObj }: any) => {
                     uris: thisQueue,
                 }),
             })
-                .then((res) => (/* res.status.startsWith("2") */ res.ok ? null : handleSetQueueError(res)))
+                .then((res) => {
+                    if (res.ok) {
+                        fetch(BASEURL + "me/", {
+                            headers: defaultHeaders,
+                        })
+                            .then((res) => (res.ok ? res.json() : Promise.reject()))
+                            .then((json) => {
+                                fetch("http://localhost:5001/solartify/us-central1/setPlaylist", {
+                                    method: "POST",
+                                    body: JSON.stringify({
+                                        playlist: thisPlaylist["id"],
+                                        userid: json.id,
+                                        token: authObj["access_token"],
+                                    }),
+                                }).catch((e) => console.log(e));
+                            })
+                            .catch((e) => console.log(e));
+                    } else {
+                        handleSetQueueError(res);
+                    }
+                })
                 .catch((e: Error) => {
                     console.log(e);
                     setTimeout(() => {
@@ -350,10 +367,7 @@ const Player = ({ playlistObj, authObj }: any) => {
                     id="current-playlist-container"
                 >
                     <img
-                        src={
-                            thisPlaylist["img"] ||
-                            "playlistObj:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="
-                        }
+                        src={thisPlaylist["img"] || "playlistObj:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="}
                         alt=""
                         id="current-playlist-image"
                     />
@@ -366,10 +380,7 @@ const Player = ({ playlistObj, authObj }: any) => {
             {/* <!-- https://stackoverflow.com/questions/5775469/whats-the-valid-way-to-include-an-image-with-no-src --> */}
             <img
                 id="album-art"
-                src={
-                    current["currentAlbum"]["cover"] ||
-                    "playlistObj:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="
-                }
+                src={current["currentAlbum"]["cover"] || "playlistObj:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="}
                 alt="album art"
             />
             <div id="song-info">
@@ -380,13 +391,7 @@ const Player = ({ playlistObj, authObj }: any) => {
             <div id="skip-container">
                 <button onClick={() => skip("prev")} className="btn skip-btn" id="prev-btn">
                     {/* <!-- https://www.svgrepo.com/svg/42622/back --> */}
-                    <svg
-                        version="1.1"
-                        id="prev-svg"
-                        xmlns="http://www.w3.org/2000/svg"
-                        xmlnsXlink="http://www.w3.org/1999/xlink"
-                        viewBox="0 0 300 300"
-                    >
+                    <svg version="1.1" id="prev-svg" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink" viewBox="0 0 300 300">
                         <defs>
                             <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
                                 <stop offset="0%" style={{ stopColor: " rgb(119, 184, 174)", stopOpacity: "1" }} />
@@ -401,14 +406,7 @@ const Player = ({ playlistObj, authObj }: any) => {
                 </button>
                 <button onClick={() => skip("pause-play")} className="btn" id="play-btn">
                     {/*  <!-- https://www.svgrepo.com/svg/100677/pause-button --> */}
-                    <svg
-                        id="play-svg"
-                        version="1.1"
-                        xmlns="http://www.w3.org/2000/svg"
-                        xmlnsXlink="http://www.w3.org/1999/xlink"
-                        viewBox="0 0 512 512"
-                        xmlSpace="preserve"
-                    >
+                    <svg id="play-svg" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" xmlSpace="preserve">
                         <defs>
                             <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
                                 <stop offset="0%" style={{ stopColor: "rgb(119, 184, 174)", stopOpacity: "1" }} />
@@ -422,13 +420,7 @@ const Player = ({ playlistObj, authObj }: any) => {
                     </svg>
                 </button>
                 <button onClick={() => skip("next")} className="btn skip-btn" id="skip-btn">
-                    <svg
-                        version="1.1"
-                        id="skip-svg"
-                        xmlns="http://www.w3.org/2000/svg"
-                        xmlnsXlink="http://www.w3.org/1999/xlink"
-                        viewBox="0 0 300 300"
-                    >
+                    <svg version="1.1" id="skip-svg" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink" viewBox="0 0 300 300">
                         <defs>
                             <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
                                 <stop offset="0%" style={{ stopColor: "rgb(119, 184, 174)", stopOpacity: "1" }} />

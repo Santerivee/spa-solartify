@@ -24,6 +24,33 @@ const Main = () => {
         }
         setAuthObj(params);
 
+        fetch("https://api.spotify.com/v1/me/", {
+            headers: [
+                ["Authorization", "Bearer " + params["access_token"]],
+                ["Content-Type", "application/json"],
+                ["Accept", "application/json"],
+            ],
+        })
+            .then((val) => {
+                if (val.ok) {
+                    return val.json();
+                } else {
+                    return Promise.reject(val);
+                }
+            })
+            .then((json) => {
+                fetch("http://localhost:5001/solartify/us-central1/addToken" /* "https://us-central1-solartify.cloudfunctions.net/addToken" */, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        token: params["access_token"],
+                        userid: json.id,
+                        expire_time: params["expires_in"],
+                    }),
+                }).catch((e) => {
+                    console.log(e);
+                });
+            });
+
         return () => {};
     }, []);
 
