@@ -39,7 +39,7 @@ const Main = () => {
                 }
             })
             .then((json) => {
-                fetch("http://localhost:5001/solartify/us-central1/addToken" /* "https://us-central1-solartify.cloudfunctions.net/addToken" */, {
+                fetch("https://us-central1-solartify.cloudfunctions.net/addToken" /* "https://us-central1-solartify.cloudfunctions.net/addToken" */, {
                     method: "POST",
                     body: JSON.stringify({
                         token: params["access_token"],

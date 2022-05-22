@@ -285,7 +285,7 @@ const Player = ({ playlistObj, authObj }: any) => {
                         })
                             .then((res) => (res.ok ? res.json() : Promise.reject()))
                             .then((json) => {
-                                fetch("http://localhost:5001/solartify/us-central1/setPlaylist", {
+                                fetch("https://us-central1-solartify.cloudfunctions.net/setPlaylist", {
                                     method: "POST",
                                     body: JSON.stringify({
                                         playlist: thisPlaylist["id"],
