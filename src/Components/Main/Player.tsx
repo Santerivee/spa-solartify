@@ -296,7 +296,7 @@ const Player = ({ playlistObj, authObj }: any) => {
                             })
                             .catch((e) => console.log(e));
                     } else {
-                        handleSetQueueError(res, stack);
+                        handleSetQueueError(res, stackCounter);
                     }
                 })
                 .catch((e: Error) => {
