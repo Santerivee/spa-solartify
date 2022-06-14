@@ -256,7 +256,7 @@ const Player = ({ playlistObj, authObj }: any) => {
     useEffect(() => {
         if (!metaData || !thisQueue) return;
 
-        function handleSetQueueError(res, stack) {
+        function handleSetQueueError(res: any, stack: any) {
             console.log(res);
             if (res.status === 502) {
                 //bad gateway
