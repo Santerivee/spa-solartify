@@ -249,8 +249,6 @@ const Player = ({ playlistObj, authObj }: any) => {
             }
             setSpinnerText("Starting playback");
             if (len > 100) tracks.length = 100;
-            // put 'https://[PROJECT_ID].firebaseio/users/jack/name.json?access_token=CREDENTIAL'
-            // put https://solartify-default-rtdb.europe-west1.firebasedatabase.app/${user_id}.json?access_token=${access_token}
             setThisQueue(tracks);
         }
     };
@@ -258,17 +256,19 @@ const Player = ({ playlistObj, authObj }: any) => {
     useEffect(() => {
         if (!metaData || !thisQueue) return;
 
-        function handleSetQueueError(res: any) {
+        function handleSetQueueError(res, stack) {
             console.log(res);
             if (res.status === 502) {
                 //bad gateway
-                setTimeout(() => setQueue(), 1000);
+                setSpinnerText(`Starting playback, attempt ${stack}`)
+                setTimeout(() => setQueue(++stack), 1000);
             }
         }
         //start playing custom queue
         function setQueue(stackCounter = 0) {
             if (stackCounter > 5) {
                 setError("Unable to start playback");
+                setSpinnerText("Unable to start playback");
                 return;
             }
             fetch(BASEURL + "me/player/play?device_id=" + metaData["device_id"], {
@@ -296,13 +296,14 @@ const Player = ({ playlistObj, authObj }: any) => {
                             })
                             .catch((e) => console.log(e));
                     } else {
-                        handleSetQueueError(res);
+                        handleSetQueueError(res, stack);
                     }
                 })
                 .catch((e: Error) => {
                     console.log(e);
+                    setSpinnerText(`Starting playback, attempt ${stackCounter}`)
                     setTimeout(() => {
-                        setQueue(stackCounter + 1);
+                        setQueue(++stackCounter);
                     }, stackCounter * 1000);
                 });
         }
