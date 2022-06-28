@@ -1,5 +1,6 @@
 export interface IWebPlaybackState {
     //THIS INTERFACE DOES NOT HAVE ALL KEYS BTW
+    paused: boolean;
     timestamp: number;
     context: {
         uri: string; // The URI of the context (can be null)

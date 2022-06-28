@@ -22,6 +22,7 @@ const Player = ({ playlistObj, authObj }: any) => {
     const [current, setCurrent] = useState<ICurrent | null>(null);
     const [volume, setVolume] = useState(0.01);
     const [seek, setSeek] = useState(0);
+    const [isPlaying, setIsPlaying] = useState(false);
     const [playlist, setPlaylist] = playlistObj;
     const [expireTime, setExpireTime] = useState(Date.now() + authObj["expires_in"] * 1000);
 
@@ -71,14 +72,12 @@ const Player = ({ playlistObj, authObj }: any) => {
             ["initialization_error", "authentication_error", "account_error", "playback_error"].forEach((name) => {
                 thisPlayer.addListener(name, () => {
                     setError(name);
-                    setSpinnerText(name);
                 });
             });
 
             thisPlayer.connect().then((success: boolean) => {
                 if (!success) {
                     setError("spotify sdk error");
-                    setSpinnerText("spotify sdk error");
                 }
             });
 
@@ -87,7 +86,10 @@ const Player = ({ playlistObj, authObj }: any) => {
 
                 if (!webPlaybackState) return;
                 setSeek(webPlaybackState["position"]);
-                if ((!current || webPlaybackState["duration"] !== current!["currentSong"]["duration_ms"]) && webPlaybackState["track_window"]["current_track"] !== null) {
+
+                setIsPlaying(!webPlaybackState["paused"]);
+
+                if ((!current || webPlaybackState["duration"] != current!["currentSong"]["duration_ms"]) && webPlaybackState["track_window"]["current_track"] != null) {
                     //song has changed, update current
                     const artists: string[] = [];
                     const nextArtists: string[] = [];
@@ -137,7 +139,7 @@ const Player = ({ playlistObj, authObj }: any) => {
             if (thisPlaylist["alreadySaved"]) {
                 const dbTracks = JSON.parse(window.localStorage.getItem(thisPlaylist["id"])) || null;
 
-                if (thisPlaylist["total"] === dbTracks.length) {
+                if (thisPlaylist["total"] == dbTracks.length) {
                     shufflePlaylist(dbTracks);
                 } else {
                     setThisPlaylist((last) => {
@@ -154,8 +156,8 @@ const Player = ({ playlistObj, authObj }: any) => {
         } catch (e) {
             console.log("idarray or " + thisPlaylist["id"] + " not in localstorage");
             console.log(e);
+            setError(e as string);
             //@ts-ignore
-            setSpinnerText(e);
         }
 
         function fetchTracks() {
@@ -171,7 +173,7 @@ const Player = ({ playlistObj, authObj }: any) => {
                         headers: defaultHeaders,
                     })
                         .then((response) => {
-                            if (response.status === 429) {
+                            if (response.status == 429) {
                                 const wait = parseInt(response.headers.get("retry-after"));
                                 console.log({ wait });
                                 setTimeout(() => {
@@ -180,6 +182,7 @@ const Player = ({ playlistObj, authObj }: any) => {
                                 }, wait * 1000);
                             } else if (!(response.status > 199 && response.status < 300)) {
                                 console.log(response);
+                                response.json().then((j) => setError(response.status + "\n" + j.error.message));
                             } else {
                                 return response.json();
                             }
@@ -188,11 +191,10 @@ const Player = ({ playlistObj, authObj }: any) => {
                             data["items"].forEach((item) => {
                                 tracks.push(item["track"]["uri"]);
                             });
-                            if (offset >= thisPlaylist["total"]) {
+                            if (offset > thisPlaylist["total"]) {
                                 shufflePlaylist(tracks);
                             } else {
-                                //@ts-ignore
-                                setSpinnerPercentage(parseInt((offset / thisPlaylist["total"]) * 100));
+                                setSpinnerPercentage((offset / thisPlaylist["total"]) * 100);
                                 get50Tracks(offset + 50);
                             }
                         })
@@ -247,8 +249,11 @@ const Player = ({ playlistObj, authObj }: any) => {
                 db.setItem(thisPlaylist["id"], JSON.stringify(tracks));
                 db.setItem("idarray", JSON.stringify(idArray));
             }
+
+            tracks = tracks.filter((track) => track.includes("spotify:local") == false);
+            if (tracks.length > 100) tracks.length = 100;
+
             setSpinnerText("Starting playback");
-            if (len > 100) tracks.length = 100;
             setThisQueue(tracks);
         }
     };
@@ -258,14 +263,17 @@ const Player = ({ playlistObj, authObj }: any) => {
 
         function handleSetQueueError(res: any, stack: any) {
             console.log(res);
-            if (res.status === 502) {
+            if (res.status == 502) {
                 //bad gateway
                 setSpinnerText(`Starting playback, attempt ${stack}`)
                 setTimeout(() => setQueue(++stack), 1000);
+            } else {
+                const j = res.json();
+                setError(res.status + "\n" + j.error.message);
             }
         }
         //start playing custom queue
-        function setQueue(stackCounter = 0) {
+        function setQueue(stackCounter = 1) {
             if (stackCounter > 5) {
                 setError("Unable to start playback");
                 setSpinnerText("Unable to start playback");
@@ -292,9 +300,15 @@ const Player = ({ playlistObj, authObj }: any) => {
                                         userid: json.id,
                                         token: authObj["access_token"],
                                     }),
-                                }).catch((e) => console.log(e));
+                                }).catch((e) => {
+                                    setError("could not access solartify db");
+                                    console.log(e);
+                                });
                             })
-                            .catch((e) => console.log(e));
+                            .catch((e) => {
+                                setError("spotify api threw, could not access solartify db");
+                                console.log(e);
+                            });
                     } else {
                         handleSetQueueError(res, stackCounter);
                     }
@@ -314,10 +328,14 @@ const Player = ({ playlistObj, authObj }: any) => {
 
     useEffect(() => {
         //automatically increment seek
-        setInterval(() => {
-            setSeek((prev) => prev + 1000);
+        const inty = setInterval(() => {
+            console.log(isPlaying);
+            if (isPlaying) {
+                setSeek((prev) => prev + 1000);
+            }
         }, 1000);
-    }, []);
+        return () => clearInterval(inty);
+    }, [isPlaying]);
 
     const deleteSong = function () {
         fetch(BASEURL + "playlists/" + thisPlaylist["id"] + "/tracks", {
@@ -344,10 +362,10 @@ const Player = ({ playlistObj, authObj }: any) => {
                 return;
         }
     };
-    if (!current) return <Spinner percentage={spinnerPercentage} text={spinnerText} />;
+    if (!current) return <Spinner percentage={spinnerPercentage} text={spinnerText} error={error} setError={setError} />;
     return (
         <main id="player">
-            {error ? <ErrorModal error={error} /> : null}
+            {error ? <ErrorModal error={error} setError={setError} /> : null}
             <header id="header">
                 <Link id="logout-container" to="/">
                     <button
@@ -407,7 +425,15 @@ const Player = ({ playlistObj, authObj }: any) => {
                 </button>
                 <button onClick={() => skip("pause-play")} className="btn" id="play-btn">
                     {/*  <!-- https://www.svgrepo.com/svg/100677/pause-button --> */}
-                    <svg id="play-svg" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" xmlSpace="preserve">
+                    <svg
+                        style={{ transform: isPlaying ? "" : "rotate(90deg) " }}
+                        id="play-svg"
+                        version="1.1"
+                        xmlns="http://www.w3.org/2000/svg"
+                        xmlnsXlink="http://www.w3.org/1999/xlink"
+                        viewBox="0 0 512 512"
+                        xmlSpace="preserve"
+                    >
                         <defs>
                             <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
                                 <stop offset="0%" style={{ stopColor: "rgb(119, 184, 174)", stopOpacity: "1" }} />
