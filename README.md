@@ -6,4 +6,4 @@
 
 made because i dont like the default spotify player  
 work in progress  
-btw not public yet ask for access
+btw not public yet bc of spotify rules ask for access

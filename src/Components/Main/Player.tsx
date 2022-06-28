@@ -261,11 +261,12 @@ const Player = ({ playlistObj, authObj }: any) => {
     useEffect(() => {
         if (!metaData || !thisQueue) return;
 
-        function handleSetQueueError(res: any) {
+        function handleSetQueueError(res: any, stack: any) {
             console.log(res);
             if (res.status == 502) {
                 //bad gateway
-                setTimeout(() => setQueue(), 1000);
+                setSpinnerText(`Starting playback, attempt ${stack}`)
+                setTimeout(() => setQueue(++stack), 1000);
             } else {
                 const j = res.json();
                 setError(res.status + "\n" + j.error.message);
@@ -275,6 +276,7 @@ const Player = ({ playlistObj, authObj }: any) => {
         function setQueue(stackCounter = 1) {
             if (stackCounter > 5) {
                 setError("Unable to start playback");
+                setSpinnerText("Unable to start playback");
                 return;
             }
             fetch(BASEURL + "me/player/play?device_id=" + metaData["device_id"], {
@@ -308,13 +310,14 @@ const Player = ({ playlistObj, authObj }: any) => {
                                 console.log(e);
                             });
                     } else {
-                        handleSetQueueError(res);
+                        handleSetQueueError(res, stackCounter);
                     }
                 })
                 .catch((e: Error) => {
                     console.log(e);
+                    setSpinnerText(`Starting playback, attempt ${stackCounter}`)
                     setTimeout(() => {
-                        setQueue(stackCounter + 1);
+                        setQueue(++stackCounter);
                     }, stackCounter * 1000);
                 });
         }
