@@ -194,6 +194,7 @@ const Player = ({ playlistObj, authObj }: any) => {
                             if (offset > thisPlaylist["total"]) {
                                 shufflePlaylist(tracks);
                             } else {
+                                //@ts-ignore
                                 setSpinnerPercentage(parseInt((offset / thisPlaylist["total"]) * 100));
                                 get50Tracks(offset + 50);
                             }
