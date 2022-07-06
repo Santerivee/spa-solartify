@@ -82,7 +82,6 @@ const Player = ({ playlistObj, authObj }: any) => {
             });
 
             thisPlayer.addListener("player_state_changed", (webPlaybackState: IWebPlaybackState) => {
-                console.log("player state change");
 
                 if (!webPlaybackState) return;
                 setSeek(webPlaybackState["position"]);
@@ -330,7 +329,6 @@ const Player = ({ playlistObj, authObj }: any) => {
     useEffect(() => {
         //automatically increment seek
         const inty = setInterval(() => {
-            console.log(isPlaying);
             if (isPlaying) {
                 setSeek((prev) => prev + 1000);
             }
