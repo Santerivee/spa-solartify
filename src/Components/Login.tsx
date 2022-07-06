@@ -34,8 +34,8 @@ const Login = () => {
         //dont allow deletion if state cant be validated, just in case
         const scope =
             checked && state
-                ? "streaming playlist-read-collaborative playlist-read-private user-read-private playlist-modify-public playlist-modify-private"
-                : "streaming playlist-read-collaborative playlist-read-private user-read-private";
+                ? "streaming user-modify-playback-state playlist-read-collaborative playlist-read-private user-read-private playlist-modify-public playlist-modify-private"
+                : "streaming user-modify-playback-state playlist-read-collaborative playlist-read-private user-read-private";
 
         let url =
             "https://accounts.spotify.com/authorize" +
